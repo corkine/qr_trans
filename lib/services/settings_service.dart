@@ -66,10 +66,4 @@ class SettingsService {
     final updatedSettings = settings.copyWith(autoPlay: autoPlay);
     await saveSettings(updatedSettings);
   }
-
-  static Future<void> updateDarkMode(bool darkMode) async {
-    final settings = await loadSettings();
-    final updatedSettings = settings.copyWith(darkMode: darkMode);
-    await saveSettings(updatedSettings);
-  }
 }

@@ -7,12 +7,11 @@ part of 'app_settings.dart';
 // **************************************************************************
 
 _AppSettings _$AppSettingsFromJson(Map<String, dynamic> json) => _AppSettings(
-  qrSize: (json['qrSize'] as num?)?.toDouble() ?? 200.0,
+  qrSize: (json['qrSize'] as num?)?.toDouble() ?? 360.0,
   playbackSpeed: (json['playbackSpeed'] as num?)?.toInt() ?? 1000,
   errorCorrectionLevel: (json['errorCorrectionLevel'] as num?)?.toInt() ?? 1,
-  chunkSizeRatio: (json['chunkSizeRatio'] as num?)?.toDouble() ?? 50.0,
+  chunkSizeRatio: (json['chunkSizeRatio'] as num?)?.toDouble() ?? 80.0,
   autoPlay: json['autoPlay'] as bool? ?? true,
-  darkMode: json['darkMode'] as bool? ?? false,
 );
 
 Map<String, dynamic> _$AppSettingsToJson(_AppSettings instance) =>
@@ -22,7 +21,6 @@ Map<String, dynamic> _$AppSettingsToJson(_AppSettings instance) =>
       'errorCorrectionLevel': instance.errorCorrectionLevel,
       'chunkSizeRatio': instance.chunkSizeRatio,
       'autoPlay': instance.autoPlay,
-      'darkMode': instance.darkMode,
     };
 
 _AppState _$AppStateFromJson(Map<String, dynamic> json) => _AppState(

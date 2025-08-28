@@ -12,7 +12,6 @@ abstract class AppSettings with _$AppSettings {
     @Default(1) int errorCorrectionLevel,
     @Default(80.0) double chunkSizeRatio, // 0-100 ratio for chunk size
     @Default(true) bool autoPlay,
-    @Default(false) bool darkMode,
   }) = _AppSettings;
 
   factory AppSettings.fromJson(Map<String, dynamic> json) =>

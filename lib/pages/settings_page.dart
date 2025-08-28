@@ -117,20 +117,6 @@ class _SettingsPageState extends State<SettingsPage> {
                 await _loadSettings();
               },
             ),
-
-            const Divider(),
-
-            // 暗色模式
-            _buildSwitchSetting(
-              context: context,
-              title: '暗色模式',
-              subtitle: '使用深色主题',
-              value: settings.darkMode,
-              onChanged: (value) async {
-                await SettingsService.updateDarkMode(value);
-                await _loadSettings();
-              },
-            ),
           ],
         ),
       ),

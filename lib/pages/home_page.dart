@@ -11,10 +11,8 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-
   @override
   Widget build(BuildContext context) {
-
     return Scaffold(
       body: SafeArea(
         child: Center(
@@ -27,7 +25,7 @@ class _HomePageState extends State<HomePage> {
                 _buildWelcomeCard(context),
                 const Spacer(),
                 _buildActionButtons(context),
-                const Spacer(flex: 2)
+                const Spacer(flex: 2),
               ],
             ),
           ),
@@ -139,11 +137,7 @@ class _HomePageState extends State<HomePage> {
                   color: color.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: Icon(
-                  icon,
-                  size: 32,
-                  color: color,
-                ),
+                child: Icon(icon, size: 32, color: color),
               ),
               const SizedBox(width: 16),
               Expanded(

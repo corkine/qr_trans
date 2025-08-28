@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
-import 'dart:math' as math;
 import 'package:qr_trans/services/qr_service.dart';
 
 import '../models/app_settings.dart';

@@ -6,6 +6,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:qr_flutter/qr_flutter.dart';
+import 'package:path_provider/path_provider.dart';
 import '../models/app_settings.dart';
 import '../services/file_service.dart';
 import '../services/settings_service.dart';
@@ -174,7 +175,7 @@ class _SendPageState extends State<SendPage> {
 
   Widget _buildFileUploadCard() {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 32),
+      padding: const EdgeInsets.only(bottom: 52),
       child: Center(
         child: Card(
           elevation: 0,
@@ -214,10 +215,30 @@ class _SendPageState extends State<SendPage> {
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 24),
-                  FilledButton.icon(
-                    onPressed: _pickFile,
-                    icon: const Icon(Icons.folder_open),
-                    label: const Text('选择文件'),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      FilledButton.icon(
+                        onPressed: _pickFile,
+                        icon: const Icon(Icons.folder_open),
+                        label: const Text('选择文件'),
+                      ),
+                      const SizedBox(width: 12),
+                      FilledButton.icon(
+                        onPressed: _createFileFromClipboard,
+                        icon: const Icon(Icons.content_paste),
+                        label: const Text('文本拷贝'),
+                        style: FilledButton.styleFrom(
+                          backgroundColor: Theme.of(
+                            context,
+                          ).colorScheme.surfaceContainerHighest,
+                          foregroundColor: Theme.of(
+                            context,
+                          ).colorScheme.onSurface,
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -237,7 +258,7 @@ class _SendPageState extends State<SendPage> {
     return Card(
       elevation: 0,
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.only(left: 16, right: 16, top: 8, bottom: 8),
         child: Row(
           children: [
             Icon(
@@ -320,7 +341,7 @@ class _SendPageState extends State<SendPage> {
                       ],
                     ),
                   ),
-            const SizedBox(height: 50),
+            const SizedBox(height: 30),
             Row(
               spacing: 12,
               mainAxisAlignment: MainAxisAlignment.center,
@@ -352,10 +373,31 @@ class _SendPageState extends State<SendPage> {
                   icon: const Icon(Icons.skip_next),
                   tooltip: '下一个',
                 ),
+                if (playbackProgress != null) ...[
+                  const SizedBox(width: 10),
+                  SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(
+                      value:
+                          playbackProgress['current']! /
+                          playbackProgress['total']!,
+                      color: Theme.of(context).colorScheme.primary,
+                      strokeWidth: 2,
+                      backgroundColor: Theme.of(
+                        context,
+                      ).colorScheme.surfaceContainerHighest,
+                    ),
+                  ),
+                  Text(
+                    '${playbackProgress['current']} / ${playbackProgress['total']}',
+                    style: Theme.of(context).textTheme.bodyMedium,
+                  ),
+                ],
               ],
             ),
             if (transferState.status == TransferStatus.error) ...[
-              const SizedBox(height: 16),
+              const SizedBox(height: 10),
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
@@ -379,19 +421,6 @@ class _SendPageState extends State<SendPage> {
                     ),
                   ],
                 ),
-              ),
-            ],
-
-            if (playbackProgress != null) ...[
-              const SizedBox(height: 16),
-              LinearProgressIndicator(
-                value:
-                    playbackProgress['current']! / playbackProgress['total']!,
-              ),
-              const SizedBox(height: 4),
-              Text(
-                '${playbackProgress['current']} / ${playbackProgress['total']}',
-                style: Theme.of(context).textTheme.bodyMedium,
               ),
             ],
 
@@ -545,6 +574,126 @@ class _SendPageState extends State<SendPage> {
         );
       }
     }
+  }
+
+  Future<void> _createFileFromClipboard() async {
+    try {
+      // 从剪贴板获取文本
+      final ClipboardData? clipboardData = await Clipboard.getData(
+        Clipboard.kTextPlain,
+      );
+
+      if (clipboardData?.text == null || clipboardData!.text!.trim().isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text('剪贴板中没有文本内容'),
+              backgroundColor: Theme.of(context).colorScheme.error,
+            ),
+          );
+        }
+        return;
+      }
+
+      // 生成带时间戳的文件名
+      final now = DateTime.now();
+      final timestamp =
+          '${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}_${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
+      final fileName = 'chipboard_$timestamp.txt';
+
+      // 显示预览弹窗
+      final shouldProceed = await _showClipboardPreview(
+        clipboardData.text!,
+        fileName,
+      );
+      if (!shouldProceed) return;
+
+      // 创建临时文件
+      final tempDir = await getTemporaryDirectory();
+      final tempFile = File('${tempDir.path}/$fileName');
+
+      // 写入剪贴板内容
+      await tempFile.writeAsString(clipboardData.text!);
+
+      if (mounted) {
+        setState(() {
+          _selectedFile = tempFile;
+        });
+        await _prepareQrData(tempFile);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('从剪贴板创建文件失败: $e'),
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<bool> _showClipboardPreview(String content, String fileName) async {
+    return await showDialog<bool>(
+          context: context,
+          builder: (BuildContext context) {
+            return AlertDialog(
+              content: SizedBox(
+                width: double.maxFinite,
+                height: MediaQuery.of(context).size.height * 0.8,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const SizedBox(height: 12),
+                    Text(
+                      fileName,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: Theme.of(context).colorScheme.primary,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Expanded(
+                      child: Container(
+                        width: double.maxFinite,
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.surfaceContainerHighest,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.outline.withValues(alpha: 0.3),
+                          ),
+                        ),
+                        child: SingleChildScrollView(
+                          child: SelectableText(
+                            content,
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(fontFamily: 'monospace'),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(false),
+                  child: const Text('取消'),
+                ),
+                FilledButton(
+                  onPressed: () => Navigator.of(context).pop(true),
+                  child: const Text('确认发送'),
+                ),
+              ],
+            );
+          },
+        ) ??
+        false;
   }
 
   Future<void> _prepareQrData(File file) async {
