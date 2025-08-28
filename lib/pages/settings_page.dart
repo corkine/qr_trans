@@ -46,7 +46,6 @@ class _SettingsPageState extends State<SettingsPage> {
 
   @override
   Widget build(BuildContext context) {
-
     return Scaffold(
       appBar: AppBar(
         title: const Text('设置'),
@@ -64,25 +63,25 @@ class _SettingsPageState extends State<SettingsPage> {
         child: _isLoading
             ? const Center(child: CircularProgressIndicator())
             : _error != null
-                ? _buildErrorView(context, _error!)
-                : Center(
-                    child: SingleChildScrollView(
-                      padding: const EdgeInsets.only(bottom: 16),
-                      child: ConstrainedBox(
-                        constraints: const BoxConstraints(maxWidth: 600),
-                        child: Column(
-                          spacing: 16,
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            _buildDisplaySection(context, _settings!),
-                            _buildTransferSection(context, _settings!),
-                            _buildAdvancedSection(context, _settings!),
-                            _buildAppSection(context, _settings!),
-                          ],
-                        ),
-                      ),
+            ? _buildErrorView(context, _error!)
+            : Center(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.only(bottom: 16),
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 600),
+                    child: Column(
+                      spacing: 16,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        _buildDisplaySection(context, _settings!),
+                        _buildTransferSection(context, _settings!),
+                        _buildAdvancedSection(context, _settings!),
+                        _buildAppSection(context, _settings!),
+                      ],
                     ),
                   ),
+                ),
+              ),
       ),
     );
   }
@@ -176,14 +175,14 @@ class _SettingsPageState extends State<SettingsPage> {
             _buildSliderSetting(
               context: context,
               title: '数据块大小',
-              subtitle: '每个二维码包含的数据量',
-              value: settings.chunkSize.toDouble(),
-              min: 512.0,
-              max: 4096.0,
-              divisions: 7,
-              format: (value) => '${(value / 1024).toStringAsFixed(1)} KB',
+              subtitle: '二维码数据量比例（系统自动计算实际字节数）',
+              value: settings.chunkSizeRatio,
+              min: 10.0,
+              max: 100.0,
+              divisions: 18,
+              format: (value) => '${value.toInt()}%',
               onChanged: (value) async {
-                await SettingsService.updateChunkSize(value.round());
+                await SettingsService.updateChunkSizeRatio(value);
                 await _loadSettings();
               },
             ),
@@ -444,10 +443,7 @@ class _SettingsPageState extends State<SettingsPage> {
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 24),
-            FilledButton(
-              onPressed: _loadSettings,
-              child: const Text('重试'),
-            ),
+            FilledButton(onPressed: _loadSettings, child: const Text('重试')),
           ],
         ),
       ),

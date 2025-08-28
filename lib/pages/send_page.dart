@@ -1,7 +1,10 @@
+// ignore_for_file: avoid_print
+
 import 'dart:io';
 import 'dart:convert';
 import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import '../models/app_settings.dart';
 import '../services/file_service.dart';
@@ -23,13 +26,19 @@ class _SendPageState extends State<SendPage> {
   AppState? _transferState;
   String? _qrData;
   Map<String, int>? _playbackProgress;
+  late FocusNode _focusNode;
 
   @override
   void initState() {
     super.initState();
+    _focusNode = FocusNode();
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       QrService.resetGenerator();
-      TransferService.clearError();
+      // 清除接收页面可能留下的传输状态
+      TransferService.reset();
+      // 请求焦点以启用键盘控制
+      _focusNode.requestFocus();
     });
 
     TransferService.addListener(_onTransferStateChanged);
@@ -55,6 +64,35 @@ class _SendPageState extends State<SendPage> {
       _qrData = qrData;
       _playbackProgress = QrService.playbackProgress;
     });
+  }
+
+  KeyEventResult _handleKeyEvent(FocusNode node, KeyEvent event) {
+    // 只处理按键按下事件，避免重复触发
+    if (event is! KeyDownEvent) return KeyEventResult.ignored;
+
+    // 只有在选择了文件时才响应键盘事件
+    if (_selectedFile == null) return KeyEventResult.ignored;
+
+    switch (event.logicalKey) {
+      case LogicalKeyboardKey.arrowLeft:
+        _previousQr();
+        return KeyEventResult.handled;
+      case LogicalKeyboardKey.arrowRight:
+        _nextQr();
+        return KeyEventResult.handled;
+      case LogicalKeyboardKey.space:
+        if (_isPlaying) {
+          _pausePlayback();
+        } else {
+          _startPlayback();
+        }
+        return KeyEventResult.handled;
+      case LogicalKeyboardKey.escape:
+        _stopAndReset();
+        return KeyEventResult.handled;
+      default:
+        return KeyEventResult.ignored;
+    }
   }
 
   Future<void> _loadSettings() async {
@@ -101,7 +139,12 @@ class _SendPageState extends State<SendPage> {
             ),
         ],
       ),
-      body: SafeArea(child: _buildLayout(context, transferState)),
+      body: Focus(
+        focusNode: _focusNode,
+        onKeyEvent: _handleKeyEvent,
+        autofocus: true,
+        child: SafeArea(child: _buildLayout(context, transferState)),
+      ),
     );
   }
 
@@ -216,11 +259,27 @@ class _SendPageState extends State<SendPage> {
                     overflow: TextOverflow.ellipsis,
                   ),
                   const SizedBox(height: 4),
-                  Text(
-                    _formatFileSize(fileSize),
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    ),
+                  Row(
+                    children: [
+                      Text(
+                        _formatFileSize(fileSize),
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: Theme.of(context).colorScheme.primary,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      const SizedBox(width: 5),
+                      if (_playbackProgress != null) ...[
+                        Text(
+                          '• ${_playbackProgress!['total']} 个二维码 • ${_settings!.chunkSizeRatio.toInt()}% 数据密度',
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(
+                                color: Theme.of(context).colorScheme.primary,
+                                fontWeight: FontWeight.w500,
+                              ),
+                        ),
+                      ],
+                    ],
                   ),
                 ],
               ),
@@ -263,30 +322,35 @@ class _SendPageState extends State<SendPage> {
                   ),
             const SizedBox(height: 50),
             Row(
-              mainAxisAlignment: MainAxisAlignment.center,
               spacing: 12,
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                FilledButton.icon(
-                  onPressed: _selectedFile != null && !_isPlaying
-                      ? _startPlayback
+                IconButton(
+                  onPressed: _selectedFile != null
+                      ? (_isPlaying ? _pausePlayback : _startPlayback)
                       : null,
-                  icon: const Icon(Icons.play_arrow),
-                  label: const Text('开始'),
+                  icon: Icon(
+                    _isPlaying ? Icons.pause : Icons.play_arrow,
+                    size: 32,
+                  ),
+                  tooltip: _isPlaying ? '暂停' : '开始',
                 ),
-                OutlinedButton.icon(
-                  onPressed: _isPlaying ? _stopPlayback : null,
+                IconButton(
+                  onPressed: _isPlaying || _selectedFile != null
+                      ? _stopAndReset
+                      : null,
                   icon: const Icon(Icons.stop),
-                  label: const Text('停止'),
+                  tooltip: '停止',
                 ),
-                OutlinedButton.icon(
+                IconButton(
                   onPressed: _selectedFile != null ? _previousQr : null,
                   icon: const Icon(Icons.skip_previous),
-                  label: const Text('上一个'),
+                  tooltip: '上一个',
                 ),
-                OutlinedButton.icon(
+                IconButton(
                   onPressed: _selectedFile != null ? _nextQr : null,
                   icon: const Icon(Icons.skip_next),
-                  label: const Text('下一个'),
+                  tooltip: '下一个',
                 ),
               ],
             ),
@@ -328,6 +392,41 @@ class _SendPageState extends State<SendPage> {
               Text(
                 '${playbackProgress['current']} / ${playbackProgress['total']}',
                 style: Theme.of(context).textTheme.bodyMedium,
+              ),
+            ],
+
+            // 键盘快捷键提示
+            if (_selectedFile != null) ...[
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Column(
+                  children: [
+                    Text(
+                      '键盘快捷键',
+                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 16,
+                      runSpacing: 4,
+                      children: [
+                        _buildKeyTip('← →', '切换二维码'),
+                        _buildKeyTip('空格', '播放/暂停'),
+                        _buildKeyTip('Esc', '停止并重置'),
+                      ],
+                    ),
+                  ],
+                ),
               ),
             ],
           ],
@@ -374,21 +473,74 @@ class _SendPageState extends State<SendPage> {
     );
   }
 
+  Widget _buildKeyTip(String keys, String description) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.2),
+            borderRadius: BorderRadius.circular(4),
+            border: Border.all(
+              color: Theme.of(
+                context,
+              ).colorScheme.outline.withValues(alpha: 0.3),
+              width: 0.5,
+            ),
+          ),
+          child: Text(
+            keys,
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              fontFamily: 'monospace',
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ),
+        const SizedBox(width: 4),
+        Text(description, style: Theme.of(context).textTheme.labelSmall),
+      ],
+    );
+  }
+
   Future<void> _pickFile() async {
     try {
+      print('_pickFile: 开始选择文件');
       final file = await FileService.pickFile();
+      print('_pickFile: 选择文件完成，结果: $file');
+
       if (file != null && mounted) {
+        print('_pickFile: 文件选择成功，设置状态');
         setState(() {
           _selectedFile = file;
         });
         await _prepareQrData(file);
+      } else if (file == null) {
+        print('_pickFile: 没有选择文件或用户取消');
+        // 用户取消选择，不显示错误消息
       }
-    } catch (e) {
+    } catch (e, stackTrace) {
+      print('_pickFile: 文件选择发生错误: $e');
+      print('_pickFile: 错误堆栈: $stackTrace');
+
       if (mounted) {
+        String errorMessage = '文件选择失败';
+
+        // 根据错误类型提供更具体的错误信息
+        if (e.toString().contains('Permission denied') ||
+            e.toString().contains('permission')) {
+          errorMessage = '文件选择失败: 权限不足，请检查应用权限设置';
+        } else if (e.toString().contains('Platform')) {
+          errorMessage = '文件选择失败: 当前平台不支持文件选择功能';
+        } else {
+          errorMessage = '文件选择失败: $e';
+        }
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('文件选择失败: $e'),
+            content: Text(errorMessage),
             backgroundColor: Theme.of(context).colorScheme.error,
+            duration: const Duration(seconds: 5),
           ),
         );
       }
@@ -397,6 +549,9 @@ class _SendPageState extends State<SendPage> {
 
   Future<void> _prepareQrData(File file) async {
     try {
+      print(
+        'Send Page: 准备 QR 数据，当前设置比例: ${_settings?.chunkSizeRatio.toInt()}%',
+      );
       await QrService.prepareQrData(file, _settings!);
     } catch (e) {
       if (mounted) {
@@ -411,8 +566,8 @@ class _SendPageState extends State<SendPage> {
   }
 
   Future<void> _startPlayback() async {
-    // 在开始播放前，重新准备分片，确保使用最新的自适应分片逻辑
-    if (_selectedFile != null) {
+    // 检查是否已有QR数据，如果没有则准备数据
+    if (_selectedFile != null && QrService.currentQrData == null) {
       await _prepareQrData(_selectedFile!);
     }
     if (!mounted) return;
@@ -424,8 +579,28 @@ class _SendPageState extends State<SendPage> {
     }
   }
 
+  void _pausePlayback() {
+    QrService.stopPlayback();
+    if (mounted) {
+      setState(() {
+        _isPlaying = false;
+      });
+    }
+  }
+
   void _stopPlayback() {
     QrService.stopPlayback();
+    if (mounted) {
+      setState(() {
+        _isPlaying = false;
+      });
+    }
+  }
+
+  void _stopAndReset() {
+    // 停止播放并回到第一个二维码，不清除文件选择
+    QrService.stopAndResetToFirst();
+    TransferService.reset();
     if (mounted) {
       setState(() {
         _isPlaying = false;
@@ -463,6 +638,7 @@ class _SendPageState extends State<SendPage> {
 
   @override
   void dispose() {
+    _focusNode.dispose();
     QrService.stopPlayback();
     TransferService.removeListener(_onTransferStateChanged);
     QrService.removeQrListener(_onQrDataChanged);

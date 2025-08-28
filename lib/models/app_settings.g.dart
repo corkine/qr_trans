@@ -10,7 +10,7 @@ _AppSettings _$AppSettingsFromJson(Map<String, dynamic> json) => _AppSettings(
   qrSize: (json['qrSize'] as num?)?.toDouble() ?? 200.0,
   playbackSpeed: (json['playbackSpeed'] as num?)?.toInt() ?? 1000,
   errorCorrectionLevel: (json['errorCorrectionLevel'] as num?)?.toInt() ?? 1,
-  chunkSize: (json['chunkSize'] as num?)?.toInt() ?? 1024,
+  chunkSizeRatio: (json['chunkSizeRatio'] as num?)?.toDouble() ?? 50.0,
   autoPlay: json['autoPlay'] as bool? ?? true,
   darkMode: json['darkMode'] as bool? ?? false,
 );
@@ -20,7 +20,7 @@ Map<String, dynamic> _$AppSettingsToJson(_AppSettings instance) =>
       'qrSize': instance.qrSize,
       'playbackSpeed': instance.playbackSpeed,
       'errorCorrectionLevel': instance.errorCorrectionLevel,
-      'chunkSize': instance.chunkSize,
+      'chunkSizeRatio': instance.chunkSizeRatio,
       'autoPlay': instance.autoPlay,
       'darkMode': instance.darkMode,
     };
@@ -32,11 +32,11 @@ _AppState _$AppStateFromJson(Map<String, dynamic> json) => _AppState(
   status:
       $enumDecodeNullable(_$TransferStatusEnumMap, json['status']) ??
       TransferStatus.idle,
-  activeTransfers:
-      (json['activeTransfers'] as List<dynamic>?)
-          ?.map((e) => TransferProgress.fromJson(e as Map<String, dynamic>))
-          .toList() ??
-      const [],
+  activeTransfer: json['activeTransfer'] == null
+      ? null
+      : TransferProgress.fromJson(
+          json['activeTransfer'] as Map<String, dynamic>,
+        ),
   currentTransferId: json['currentTransferId'] as String?,
   errorMessage: json['errorMessage'] as String?,
 );
@@ -44,7 +44,7 @@ _AppState _$AppStateFromJson(Map<String, dynamic> json) => _AppState(
 Map<String, dynamic> _$AppStateToJson(_AppState instance) => <String, dynamic>{
   'settings': instance.settings,
   'status': _$TransferStatusEnumMap[instance.status]!,
-  'activeTransfers': instance.activeTransfers,
+  'activeTransfer': instance.activeTransfer,
   'currentTransferId': instance.currentTransferId,
   'errorMessage': instance.errorMessage,
 };

@@ -7,10 +7,10 @@ part 'app_settings.g.dart';
 @freezed
 abstract class AppSettings with _$AppSettings {
   const factory AppSettings({
-    @Default(200.0) double qrSize,
+    @Default(360.0) double qrSize,
     @Default(1000) int playbackSpeed, // milliseconds between frames
     @Default(1) int errorCorrectionLevel,
-    @Default(1024) int chunkSize, // bytes per chunk
+    @Default(80.0) double chunkSizeRatio, // 0-100 ratio for chunk size
     @Default(true) bool autoPlay,
     @Default(false) bool darkMode,
   }) = _AppSettings;
@@ -34,7 +34,7 @@ abstract class AppState with _$AppState {
   const factory AppState({
     @Default(AppSettings()) AppSettings settings,
     @Default(TransferStatus.idle) TransferStatus status,
-    @Default([]) List<TransferProgress> activeTransfers,
+    TransferProgress? activeTransfer, // 改为单个传输
     String? currentTransferId,
     String? errorMessage,
   }) = _AppState;

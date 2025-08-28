@@ -1,6 +1,9 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math' as math;
+import 'package:qr_trans/services/qr_service.dart';
+
 import '../models/app_settings.dart';
 import '../models/transfer_metadata.dart';
 import 'file_service.dart';
@@ -25,6 +28,7 @@ class TransferService {
 
   /// 通知所有监听器状态变化
   static void _notifyListeners() {
+    // print('TransferService: Notifying ${_listeners.length} listeners, activeTransfer: ${_currentState.activeTransfer != null}');
     for (final listener in _listeners) {
       listener(_currentState);
     }
@@ -40,14 +44,21 @@ class TransferService {
   static Future<void> prepareSendFile(File file, AppSettings settings) async {
     try {
       _updateState(_currentState.copyWith(status: TransferStatus.preparing));
-      
-      final chunks = await FileService.splitFileIntoChunks(file, settings.chunkSize);
+
+      // 计算实际的chunk大小
+      final actualChunkSize = QrService.calculateChunkSize(
+        settings.chunkSizeRatio,
+      );
+      final chunks = await FileService.splitFileIntoChunks(
+        file,
+        actualChunkSize,
+      );
       final metadata = await FileService.createTransferMetadata(
         file,
         chunks.length,
         transferId: chunks.isNotEmpty ? chunks.first.transferId : null,
       );
-      
+
       // 创建新的传输进度
       final progress = TransferProgress(
         transferId: metadata.transferId,
@@ -57,30 +68,36 @@ class TransferService {
         metadata: metadata,
       );
 
-      _updateState(_currentState.copyWith(
-        status: TransferStatus.ready,
-        currentTransferId: metadata.transferId,
-        activeTransfers: [..._currentState.activeTransfers, progress],
-      ));
+      _updateState(
+        _currentState.copyWith(
+          status: TransferStatus.ready,
+          currentTransferId: metadata.transferId,
+          activeTransfer: progress, // 单个传输
+        ),
+      );
     } catch (e) {
-      _updateState(_currentState.copyWith(
-        status: TransferStatus.error,
-        errorMessage: '文件准备失败: $e',
-      ));
+      _updateState(
+        _currentState.copyWith(
+          status: TransferStatus.error,
+          errorMessage: '文件准备失败: $e',
+        ),
+      );
     }
   }
 
   /// 开始播放QR码
   static Future<void> startPlayback() async {
     if (_currentState.currentTransferId == null) return;
-    
+
     try {
       _updateState(_currentState.copyWith(status: TransferStatus.sending));
     } catch (e) {
-      _updateState(_currentState.copyWith(
-        status: TransferStatus.error,
-        errorMessage: '播放启动失败: $e',
-      ));
+      _updateState(
+        _currentState.copyWith(
+          status: TransferStatus.error,
+          errorMessage: '播放启动失败: $e',
+        ),
+      );
     }
   }
 
@@ -91,15 +108,22 @@ class TransferService {
 
   /// 开始接收文件
   static void startReceiving() {
-    _updateState(_currentState.copyWith(status: TransferStatus.receiving));
+    // 清理旧的传输状态
+    _updateState(
+      _currentState.copyWith(
+        status: TransferStatus.receiving,
+        activeTransfer: null, // 清空旧的传输
+      ),
+    );
   }
 
   /// 处理扫描到的QR码数据
   static Future<File?> handleScannedData(String qrData) async {
     try {
-      final Map<String, dynamic> data = 
-          Map<String, dynamic>.from(jsonDecode(qrData));
-      
+      final Map<String, dynamic> data = Map<String, dynamic>.from(
+        jsonDecode(qrData),
+      );
+
       // 检查是否为元数据
       if (data.containsKey('fileName')) {
         final metadata = TransferMetadata.fromJson(data);
@@ -112,10 +136,12 @@ class TransferService {
         }
       }
     } catch (e) {
-      _updateState(_currentState.copyWith(
-        status: TransferStatus.error,
-        errorMessage: '数据解析失败: $e',
-      ));
+      _updateState(
+        _currentState.copyWith(
+          status: TransferStatus.error,
+          errorMessage: '数据解析失败: $e',
+        ),
+      );
       return null;
     }
     return null;
@@ -124,18 +150,12 @@ class TransferService {
   /// 处理元数据
   static Future<void> _handleMetadata(TransferMetadata metadata) async {
     // 检查是否已存在该传输
-    final existingIndex = _currentState.activeTransfers.indexWhere(
-      (t) => t.transferId == metadata.transferId,
-    );
-    
-    if (existingIndex != -1) {
+    if (_currentState.activeTransfer?.transferId == metadata.transferId) {
       // 传输已存在，不重复创建
       return;
     }
 
-    // 保存元数据以便恢复
-    await FileService.saveTransferMetadata(metadata);
-
+    // 创建新的传输进度
     final progress = TransferProgress(
       transferId: metadata.transferId,
       receivedChunks: 0,
@@ -144,69 +164,71 @@ class TransferService {
       metadata: metadata,
     );
 
-    _updateState(_currentState.copyWith(
-      currentTransferId: metadata.transferId,
-      activeTransfers: [..._currentState.activeTransfers, progress],
-      status: TransferStatus.receiving,
-    ));
+    _updateState(
+      _currentState.copyWith(
+        currentTransferId: metadata.transferId,
+        activeTransfer: progress, // 单个传输
+        status: TransferStatus.receiving,
+      ),
+    );
   }
 
   /// 处理数据块
   static Future<File?> _handleChunk(FileChunk chunk) async {
-    final transferIndex = _currentState.activeTransfers.indexWhere(
-      (t) => t.transferId == chunk.transferId,
-    );
+    final transfer = _currentState.activeTransfer;
 
-    if (transferIndex == -1) {
-      _updateState(_currentState.copyWith(
-        status: TransferStatus.error,
-        errorMessage: '未找到对应的传输: ${chunk.transferId}',
-      ));
+    if (transfer == null || transfer.transferId != chunk.transferId) {
+      _updateState(
+        _currentState.copyWith(
+          status: TransferStatus.error,
+          errorMessage: '未找到对应的传输: ${chunk.transferId}',
+        ),
+      );
       return null;
     }
 
-    final transfer = _currentState.activeTransfers[transferIndex];
-    
     // 检查是否已接收过该数据块
     if (transfer.chunks.containsKey(chunk.chunkIndex)) {
       // 重复接收，不处理但不报错
       return null;
     }
-    
+
     // 验证数据块的完整性
     try {
       final isValid = await FileService.validateChunk(chunk);
       if (!isValid) {
-        _updateState(_currentState.copyWith(
-          status: TransferStatus.error,
-          errorMessage: '数据块 ${chunk.chunkIndex} 校验失败',
-        ));
+        _updateState(
+          _currentState.copyWith(
+            status: TransferStatus.error,
+            errorMessage: '数据块 ${chunk.chunkIndex} 校验失败',
+          ),
+        );
         return null;
       }
     } catch (e) {
-      _updateState(_currentState.copyWith(
-        status: TransferStatus.error,
-        errorMessage: '数据块校验过程出错: $e',
-      ));
+      _updateState(
+        _currentState.copyWith(
+          status: TransferStatus.error,
+          errorMessage: '数据块校验过程出错: $e',
+        ),
+      );
       return null;
     }
-    
-    // 保存数据块到本地存储
-    await FileService.saveChunk(chunk);
-    
+
+    // 不保存数据块，不需要恢复功能
+
     // 更新进度
     final updatedChunks = Map<int, String>.from(transfer.chunks);
     updatedChunks[chunk.chunkIndex] = chunk.data;
-    
+
     final updatedTransfer = transfer.copyWith(
       receivedChunks: updatedChunks.length,
       chunks: updatedChunks,
     );
 
-    final updatedTransfers = List<TransferProgress>.from(_currentState.activeTransfers);
-    updatedTransfers[transferIndex] = updatedTransfer;
+    // print('TransferService: 更新进度 - 接收到块 ${chunk.chunkIndex}, 当前总数: ${updatedTransfer.receivedChunks}/${updatedTransfer.totalChunks}');
 
-    _updateState(_currentState.copyWith(activeTransfers: updatedTransfers));
+    _updateState(_currentState.copyWith(activeTransfer: updatedTransfer));
 
     // 检查是否完成
     if (updatedTransfer.receivedChunks == updatedTransfer.totalChunks) {
@@ -233,23 +255,21 @@ class TransferService {
       // 清理临时文件
       await FileService.cleanupTransfer(transfer.transferId);
 
-      _updateState(_currentState.copyWith(
-        status: TransferStatus.completed,
-        currentTransferId: null,
-      ));
-
-      // 移除已完成的传输
-      final updatedTransfers = _currentState.activeTransfers
-          .where((t) => t.transferId != transfer.transferId)
-          .toList();
-      
-      _updateState(_currentState.copyWith(activeTransfers: updatedTransfers));
+      _updateState(
+        _currentState.copyWith(
+          status: TransferStatus.completed,
+          currentTransferId: null,
+          activeTransfer: null, // 清空已完成的传输
+        ),
+      );
       return file;
     } catch (e) {
-      _updateState(_currentState.copyWith(
-        status: TransferStatus.error,
-        errorMessage: '文件组装失败: $e',
-      ));
+      _updateState(
+        _currentState.copyWith(
+          status: TransferStatus.error,
+          errorMessage: '文件组装失败: $e',
+        ),
+      );
       return null;
     }
   }
@@ -259,30 +279,13 @@ class TransferService {
     _updateState(const AppState());
   }
 
-  /// 恢复未完成的传输
-  static Future<void> recoverTransfers() async {
-    try {
-      final recoveredTransfers = await FileService.recoverIncompleteTransfers();
-      if (recoveredTransfers.isNotEmpty) {
-        _updateState(_currentState.copyWith(
-          activeTransfers: [..._currentState.activeTransfers, ...recoveredTransfers],
-          status: TransferStatus.receiving,
-        ));
-      }
-    } catch (e) {
-      _updateState(_currentState.copyWith(
-        status: TransferStatus.error,
-        errorMessage: '传输恢复失败: $e',
-      ));
-    }
-  }
+  // 已移除恢复功能
 
   /// 清除错误
   static void clearError() {
-    _updateState(_currentState.copyWith(
-      status: TransferStatus.idle,
-      errorMessage: null,
-    ));
+    _updateState(
+      _currentState.copyWith(status: TransferStatus.idle, errorMessage: null),
+    );
   }
 
   /// 清理所有监听器（用于应用关闭时）

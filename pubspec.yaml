@@ -49,6 +49,12 @@ dependencies:
   # File sharing
   share_plus: ^7.2.2
 
+  # File opening
+  open_file: ^3.5.7
+
+  # Swipe gestures
+  flutter_slidable: ^3.1.1
+
   # Additional utilities
   uuid: ^4.5.1
   crypto: ^3.0.6

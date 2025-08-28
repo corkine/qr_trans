@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
-import '../models/transfer_metadata.dart';
 import '../models/app_settings.dart';
 import 'file_service.dart';
 import 'transfer_service.dart';
@@ -29,11 +28,8 @@ class QrService {
   /// 获取当前进度信息
   static Map<String, int>? get playbackProgress {
     if (_qrDataList == null) return null;
-    
-    return {
-      'current': _currentIndex + 1,
-      'total': _qrDataList!.length,
-    };
+
+    return {'current': _currentIndex + 1, 'total': _qrDataList!.length};
   }
 
   // QR数据监听器管理
@@ -66,71 +62,43 @@ class QrService {
     }
   }
 
+  /// 根据比例计算实际chunk大小
+  static int calculateChunkSize(double sizeRatio) {
+    // 定义基线：最小128字节，最大300字节（保守估计避免QR码超限）
+    const int minChunkSize = 128;
+    const int maxChunkSize = 2000;
+
+    // 根据比例（10-100%）计算实际大小
+    double ratio = (sizeRatio - 10.0) / 90.0; // 将10-100范围映射到0-1
+    ratio = math.max(0.0, math.min(1.0, ratio)); // 确保在0-1范围内
+
+    int actualSize = (minChunkSize + (maxChunkSize - minChunkSize) * ratio)
+        .round();
+    return actualSize;
+  }
+
   /// 准备QR码数据
   static Future<void> prepareQrData(File file, AppSettings settings) async {
     try {
-      // 为避免 QrInputTooLongException，按 UTF-8 字节长度自适应分片
-      // 取一个保守上限，适配高纠错等级也能通过
-      const int maxBytesPerFrame = 1000;
-      int effectiveChunkSize = math.max(128, settings.chunkSize);
+      // 根据用户比例设置计算实际chunk大小
+      int effectiveChunkSize = calculateChunkSize(settings.chunkSizeRatio);
 
-      List<FileChunk> chunks;
-      TransferMetadata metadata;
+      print(
+        'QR Service: 开始准备数据 - 用户设置比例: ${settings.chunkSizeRatio.toInt()}%，实际块大小: $effectiveChunkSize 字节',
+      );
 
-      // 通过多轮比例缩放，保证单帧数据字节数不超过阈值
-      for (int attempt = 0; attempt < 6; attempt++) {
-        chunks = await FileService.splitFileIntoChunks(file, effectiveChunkSize);
-        metadata = await FileService.createTransferMetadata(
-          file,
-          chunks.length,
-          transferId: chunks.isNotEmpty ? chunks.first.transferId : null,
-        );
-
-        // 计算当前配置下的最大帧 UTF-8 字节长度
-        int maxChunkBytes = 0;
-        for (final c in chunks) {
-          final bytesLen = utf8.encode(jsonEncode(c.toJson())).length;
-          if (bytesLen > maxChunkBytes) maxChunkBytes = bytesLen;
-        }
-        final int metadataBytes = utf8.encode(jsonEncode(metadata.toJson())).length;
-        final int worstBytes = math.max(maxChunkBytes, metadataBytes);
-
-        if (worstBytes <= maxBytesPerFrame) {
-          // 满足要求
-          final qrDataList = <String>[];
-          qrDataList.add(jsonEncode(metadata.toJson()));
-          for (final chunk in chunks) {
-            qrDataList.add(jsonEncode(chunk.toJson()));
-          }
-
-          _qrDataList = qrDataList;
-          _currentIndex = 0;
-          _currentQrData = qrDataList.first; // 显示第一个（元数据）
-          _notifyQrListeners();
-
-          await TransferService.prepareSendFile(file, settings);
-          return;
-        }
-
-        // 基于比例缩放估算新的分片大小（按 UTF-8 字节数主导）
-        final double ratio = maxBytesPerFrame / worstBytes;
-        int proposed = (effectiveChunkSize * ratio * 0.90).floor();
-        if (proposed >= effectiveChunkSize) {
-          // 防止停滞，确保下降
-          proposed = (effectiveChunkSize / 2).floor();
-        }
-        effectiveChunkSize = math.max(64, proposed);
-      }
-
-      // 兜底（极端情况下仍超限）：采用小分片强制通过
-      effectiveChunkSize = 256;
-      chunks = await FileService.splitFileIntoChunks(file, effectiveChunkSize);
-      metadata = await FileService.createTransferMetadata(
+      // 使用计算得到的chunk大小直接分片
+      final chunks = await FileService.splitFileIntoChunks(
+        file,
+        effectiveChunkSize,
+      );
+      final metadata = await FileService.createTransferMetadata(
         file,
         chunks.length,
         transferId: chunks.isNotEmpty ? chunks.first.transferId : null,
       );
 
+      // 生成QR数据列表
       final qrDataList = <String>[];
       qrDataList.add(jsonEncode(metadata.toJson()));
       for (final chunk in chunks) {
@@ -139,8 +107,12 @@ class QrService {
 
       _qrDataList = qrDataList;
       _currentIndex = 0;
-      _currentQrData = qrDataList.first;
+      _currentQrData = qrDataList.first; // 显示第一个（元数据）
       _notifyQrListeners();
+
+      print(
+        'QR Service: 生成 ${chunks.length} 个数据块，总共 ${_qrDataList!.length} 个二维码',
+      );
 
       await TransferService.prepareSendFile(file, settings);
     } catch (e) {
@@ -151,7 +123,7 @@ class QrService {
   /// 开始自动播放
   static Future<void> startAutoPlay(AppSettings settings) async {
     if (_qrDataList == null || _qrDataList!.isEmpty) return;
-    
+
     _playbackTimer?.cancel();
     _playbackTimer = Timer.periodic(
       Duration(milliseconds: settings.playbackSpeed),
@@ -176,10 +148,23 @@ class QrService {
     _playbackTimer = null;
   }
 
+  /// 停止播放并回到第一个二维码
+  static void stopAndResetToFirst() {
+    _playbackTimer?.cancel();
+    _playbackTimer = null;
+
+    // 如果有二维码数据，回到第一个
+    if (_qrDataList != null && _qrDataList!.isNotEmpty) {
+      _currentIndex = 0;
+      _currentQrData = _qrDataList![_currentIndex];
+      _notifyQrListeners();
+    }
+  }
+
   /// 手动切换到下一个QR码
   static void nextQr() {
     if (_qrDataList == null || _qrDataList!.isEmpty) return;
-    
+
     _currentIndex = (_currentIndex + 1) % _qrDataList!.length;
     _currentQrData = _qrDataList![_currentIndex];
     _notifyQrListeners();
@@ -188,7 +173,7 @@ class QrService {
   /// 手动切换到上一个QR码
   static void previousQr() {
     if (_qrDataList == null || _qrDataList!.isEmpty) return;
-    
+
     _currentIndex = (_currentIndex - 1) % _qrDataList!.length;
     if (_currentIndex < 0) {
       _currentIndex = _qrDataList!.length - 1;
@@ -199,11 +184,13 @@ class QrService {
 
   /// 跳转到指定QR码
   static void jumpToQr(int index) {
-    if (_qrDataList == null || 
-        _qrDataList!.isEmpty || 
-        index < 0 || 
-        index >= _qrDataList!.length) return;
-    
+    if (_qrDataList == null ||
+        _qrDataList!.isEmpty ||
+        index < 0 ||
+        index >= _qrDataList!.length) {
+      return;
+    }
+
     _currentIndex = index;
     _currentQrData = _qrDataList![_currentIndex];
     _notifyQrListeners();
