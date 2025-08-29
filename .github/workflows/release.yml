@@ -110,8 +110,8 @@ jobs:
             platform: android
           - os: windows-latest
             platform: windows
-          - os: macos-latest
-            platform: macos
+          # - os: macos-latest
+          #   platform: macos
 
     steps:
       - name: Checkout repository
