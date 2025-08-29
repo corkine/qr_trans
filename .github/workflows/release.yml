@@ -191,7 +191,7 @@ jobs:
           VERSION="${{ steps.version-unix.outputs.version }}"
           VERSION=${VERSION#v}
           echo "Building macOS with version: $VERSION"
-          flutter build macos --release --dart-define=APP_VERSION=$VERSION
+          flutter build macos --release --dart-define=APP_VERSION=$VERSION --no-codesign
 
       # Packaging and Uploading Artifacts
       - name: Package Windows build
