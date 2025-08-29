@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:qr_trans/util.dart';
 import '../models/app_settings.dart';
 import '../services/settings_service.dart';
-import '../utils/responsive.dart';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
@@ -411,7 +411,7 @@ class _SettingsPageState extends State<SettingsPage> {
   Widget _buildErrorView(BuildContext context, String error) {
     return Center(
       child: Padding(
-        padding: ResponsiveUtils.getPadding(context),
+        padding: const EdgeInsets.all(16),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
@@ -469,15 +469,14 @@ class _SettingsPageState extends State<SettingsPage> {
     showAboutDialog(
       context: context,
       applicationName: 'QR传输',
-      applicationVersion: '1.0.0',
+      applicationVersion: getAppVersion(),
       applicationIcon: const Icon(Icons.qr_code_2, size: 48),
       children: [
-        const Text('通过二维码在设备间安全传输文件的跨平台应用。'),
+        const Text('通过二维码在设备间安全传输文件的跨平台应用。支持 Web、Android、iOS、Windows、macOS、Linux。'),
         const SizedBox(height: 16),
-        const Text('开发者信息：'),
-        const Text('• 使用 Flutter 开发'),
-        const Text('• 支持 Android、iOS、Windows、macOS、Linux'),
-        const Text('• 开源项目'),
+        Text('版本: ${getFullVersionInfo()}'),
+        const SizedBox(height: 8),
+        const Text('开发者: Corkine Ma, Github: @corkine'),
       ],
     );
   }

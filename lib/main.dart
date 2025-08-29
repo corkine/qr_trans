@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'models/app_settings.dart';
 import 'pages/home_page.dart';
 import 'services/settings_service.dart';
 
@@ -8,14 +7,13 @@ void main() {
 }
 
 class QrTransApp extends StatefulWidget {
-  const QrTransApp({Key? key}) : super(key: key);
+  const QrTransApp({super.key});
 
   @override
   State<QrTransApp> createState() => _QrTransAppState();
 }
 
 class _QrTransAppState extends State<QrTransApp> {
-  AppSettings? _settings;
   bool _isLoading = true;
   String? _error;
 
@@ -31,10 +29,8 @@ class _QrTransAppState extends State<QrTransApp> {
         _isLoading = true;
         _error = null;
       });
-      final settings = await SettingsService.loadSettings();
       if (mounted) {
         setState(() {
-          _settings = settings;
           _isLoading = false;
         });
       }

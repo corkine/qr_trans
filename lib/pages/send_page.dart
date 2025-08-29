@@ -3,6 +3,8 @@
 import 'dart:io';
 import 'dart:convert';
 import 'dart:math';
+import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:qr_flutter/qr_flutter.dart';
@@ -28,6 +30,10 @@ class _SendPageState extends State<SendPage> {
   String? _qrData;
   Map<String, int>? _playbackProgress;
   late FocusNode _focusNode;
+  
+  // Web平台文件信息存储
+  String? _webFileName;
+  int? _webFileSize;
 
   @override
   void initState() {
@@ -67,12 +73,14 @@ class _SendPageState extends State<SendPage> {
     });
   }
 
+  bool get _noFile => _selectedFile == null && _webFileName == null;
+
   KeyEventResult _handleKeyEvent(FocusNode node, KeyEvent event) {
     // 只处理按键按下事件，避免重复触发
     if (event is! KeyDownEvent) return KeyEventResult.ignored;
 
-    // 只有在选择了文件时才响应键盘事件
-    if (_selectedFile == null) return KeyEventResult.ignored;
+    // 只有在选择了文件时才响应键盘事件（移动端或Web端）
+    if (_noFile) return KeyEventResult.ignored;
 
     switch (event.logicalKey) {
       case LogicalKeyboardKey.arrowLeft:
@@ -129,7 +137,7 @@ class _SendPageState extends State<SendPage> {
         title: const Text('发送文件'),
         centerTitle: false,
         actions: [
-          if (_selectedFile != null)
+          if (!_noFile)
             Padding(
               padding: const EdgeInsets.only(right: 16),
               child: IconButton(
@@ -150,7 +158,7 @@ class _SendPageState extends State<SendPage> {
   }
 
   Widget _buildLayout(BuildContext context, AppState transferState) {
-    if (_selectedFile == null) {
+    if (_noFile) {
       return _buildFileUploadCard();
     }
     return SingleChildScrollView(
@@ -250,10 +258,14 @@ class _SendPageState extends State<SendPage> {
   }
 
   Widget _buildFileInfoCard() {
-    if (_selectedFile == null) return const SizedBox.shrink();
+    // 检查是否有文件信息（移动端或Web端）
+    if (_noFile) {
+      return const SizedBox.shrink();
+    }
 
-    final fileName = _selectedFile!.path.split('/').last;
-    final fileSize = _selectedFile!.lengthSync();
+    // 获取文件名和大小
+    final fileName = _selectedFile?.path.split('/').last ?? _webFileName!;
+    final fileSize = _selectedFile?.lengthSync() ?? _webFileSize!;
 
     return Card(
       elevation: 0,
@@ -347,7 +359,7 @@ class _SendPageState extends State<SendPage> {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 IconButton(
-                  onPressed: _selectedFile != null
+                  onPressed: (!_noFile)
                       ? (_isPlaying ? _pausePlayback : _startPlayback)
                       : null,
                   icon: Icon(
@@ -357,19 +369,19 @@ class _SendPageState extends State<SendPage> {
                   tooltip: _isPlaying ? '暂停' : '开始',
                 ),
                 IconButton(
-                  onPressed: _isPlaying || _selectedFile != null
+                  onPressed: _isPlaying || !_noFile
                       ? _stopAndReset
                       : null,
                   icon: const Icon(Icons.stop),
                   tooltip: '停止',
                 ),
                 IconButton(
-                  onPressed: _selectedFile != null ? _previousQr : null,
+                  onPressed: (!_noFile) ? _previousQr : null,
                   icon: const Icon(Icons.skip_previous),
                   tooltip: '上一个',
                 ),
                 IconButton(
-                  onPressed: _selectedFile != null ? _nextQr : null,
+                  onPressed: (!_noFile) ? _nextQr : null,
                   icon: const Icon(Icons.skip_next),
                   tooltip: '下一个',
                 ),
@@ -425,7 +437,7 @@ class _SendPageState extends State<SendPage> {
             ],
 
             // 键盘快捷键提示
-            if (_selectedFile != null) ...[
+            if (!_noFile) ...[
               const SizedBox(height: 16),
               Container(
                 padding: const EdgeInsets.all(12),
@@ -535,18 +547,46 @@ class _SendPageState extends State<SendPage> {
   Future<void> _pickFile() async {
     try {
       print('_pickFile: 开始选择文件');
-      final file = await FileService.pickFile();
-      print('_pickFile: 选择文件完成，结果: $file');
+      
+      if (kIsWeb) {
+        // Web平台：直接使用file_picker的bytes模式
+        final result = await FilePicker.platform.pickFiles(
+          type: FileType.any,
+          allowMultiple: false,
+        );
+        
+        if (result != null && result.files.isNotEmpty) {
+          final fileBytes = result.files.first.bytes;
+          final fileName = result.files.first.name;
+          
+          if (fileBytes != null) {
+            print('_pickFile: Web文件选择成功，文件名: $fileName');
+            // 设置Web平台虚拟文件信息
+            setState(() {
+              _webFileName = fileName;
+              _webFileSize = fileBytes.length;
+            });
+            await _prepareQrDataFromBytes(fileBytes, fileName);
+          } else {
+            print('_pickFile: Web文件选择失败，无法获取文件字节');
+          }
+        } else {
+          print('_pickFile: 用户取消了文件选择');
+        }
+      } else {
+        // 移动端：使用原有逻辑
+        final file = await FileService.pickFile();
+        print('_pickFile: 选择文件完成，结果: $file');
 
-      if (file != null && mounted) {
-        print('_pickFile: 文件选择成功，设置状态');
-        setState(() {
-          _selectedFile = file;
-        });
-        await _prepareQrData(file);
-      } else if (file == null) {
-        print('_pickFile: 没有选择文件或用户取消');
-        // 用户取消选择，不显示错误消息
+        if (file != null && mounted) {
+          print('_pickFile: 文件选择成功，设置状态');
+          setState(() {
+            _selectedFile = file;
+          });
+          await _prepareQrData(file);
+        } else if (file == null) {
+          print('_pickFile: 没有选择文件或用户取消');
+        }
       }
     } catch (e, stackTrace) {
       print('_pickFile: 文件选择发生错误: $e');
@@ -599,7 +639,7 @@ class _SendPageState extends State<SendPage> {
       final now = DateTime.now();
       final timestamp =
           '${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}_${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
-      final fileName = 'chipboard_$timestamp.txt';
+      final fileName = 'clipboard_$timestamp.txt';
 
       // 显示预览弹窗
       final shouldProceed = await _showClipboardPreview(
@@ -608,18 +648,26 @@ class _SendPageState extends State<SendPage> {
       );
       if (!shouldProceed) return;
 
-      // 创建临时文件
-      final tempDir = await getTemporaryDirectory();
-      final tempFile = File('${tempDir.path}/$fileName');
-
-      // 写入剪贴板内容
-      await tempFile.writeAsString(clipboardData.text!);
-
-      if (mounted) {
+      if (kIsWeb) {
+        // Web平台: 直接使用文本内容，无需创建文件
+        // 设置Web平台虚拟文件信息
         setState(() {
-          _selectedFile = tempFile;
+          _webFileName = fileName;
+          _webFileSize = utf8.encode(clipboardData.text!).length;
         });
-        await _prepareQrData(tempFile);
+        await _prepareQrDataFromText(clipboardData.text!, fileName);
+      } else {
+        // 移动端: 创建临时文件
+        final tempDir = await getTemporaryDirectory();
+        final tempFile = File('${tempDir.path}/$fileName');
+        await tempFile.writeAsString(clipboardData.text!);
+        
+        if (mounted) {
+          setState(() {
+            _selectedFile = tempFile;
+          });
+          await _prepareQrData(tempFile);
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -714,11 +762,65 @@ class _SendPageState extends State<SendPage> {
     }
   }
 
+  /// Web平台专用：从文本直接准备QR数据
+  Future<void> _prepareQrDataFromText(String text, String fileName) async {
+    try {
+      print('Send Page: 从文本准备 QR 数据 (Web平台)');
+      
+      // 将文本转换为字节数组
+      final bytes = Uint8List.fromList(utf8.encode(text));
+      
+      // 直接调用QR服务准备数据
+      await QrService.prepareQrDataFromBytes(bytes, fileName, _settings!);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('文本处理失败: $e'),
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
+        );
+      }
+    }
+  }
+
+  /// Web平台专用：从字节数组直接准备QR数据
+  Future<void> _prepareQrDataFromBytes(Uint8List bytes, String fileName) async {
+    try {
+      print('Send Page: 从字节数组准备 QR 数据 (Web平台)');
+      
+      // 直接调用QR服务准备数据
+      await QrService.prepareQrDataFromBytes(bytes, fileName, _settings!);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('文件处理失败: $e'),
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
+        );
+      }
+    }
+  }
+
   Future<void> _startPlayback() async {
     // 检查是否已有QR数据，如果没有则准备数据
     if (_selectedFile != null && QrService.currentQrData == null) {
       await _prepareQrData(_selectedFile!);
     }
+    // Web平台检查：如果有虚拟文件信息但没有QR数据，说明需要重新准备
+    else if (kIsWeb && _webFileName != null && QrService.currentQrData == null) {
+      // Web平台无法重新准备，显示错误
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('QR数据丢失，请重新选择文件'),
+          ),
+        );
+      }
+      return;
+    }
+    
     if (!mounted) return;
     await QrService.startAutoPlay(_settings!);
     if (mounted) {
@@ -772,6 +874,9 @@ class _SendPageState extends State<SendPage> {
     if (mounted) {
       setState(() {
         _selectedFile = null;
+        // 清除Web平台虚拟文件信息
+        _webFileName = null;
+        _webFileSize = null;
       });
     }
   }

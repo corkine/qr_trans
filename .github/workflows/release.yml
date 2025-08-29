@@ -4,11 +4,91 @@ on:
   push:
     tags:
       - 'v*'
+    branches:
+      - main
+      - master
 
 jobs:
+  build_web:
+    name: Build Web Version
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+
+      - name: Get Flutter dependencies
+        run: flutter pub get
+
+      - name: Run build_runner
+        run: flutter pub run build_runner build --delete-conflicting-outputs
+
+      - name: Set version variable
+        id: version
+        run: |
+          if [[ ${{ github.ref_type }} == "tag" ]]; then
+            echo "version=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+          else
+            echo "version=dev-$(echo ${{ github.sha }} | cut -c1-7)" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Build Web (CanvasKit)
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          # 移除 v 前缀（如果存在）
+          VERSION=${VERSION#v}
+          echo "Building with version: $VERSION"
+          
+          flutter build web \
+            --release \
+            --web-renderer canvaskit \
+            --base-href "/qr_trans/" \
+            --dart-define=WEB_RENDERER=canvaskit \
+            --dart-define=APP_VERSION=$VERSION
+
+      - name: Setup Web deployment
+        run: |
+          # 直接使用 CanvasKit 构建作为最终版本
+          mv build/web build/web-final
+          
+          # 添加版本信息到 index.html
+          if [ -f "build/web-final/index.html" ]; then
+            sed -i 's/<title>qr_trans<\/title>/<title>QR Trans - 二维码文件传输 (v${{ steps.version.outputs.version }})<\/title>/' build/web-final/index.html
+          fi
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+
+      - name: Upload to GitHub Pages
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: build/web-final
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+
+      - name: Upload Web artifacts
+        if: github.ref_type == 'tag'
+        uses: actions/upload-artifact@v4
+        with:
+          name: qr-trans-web-${{ github.ref_name }}
+          path: build/web-final/
+          retention-days: 30
+
   build_cross_platform:
     name: Build QR Trans App for ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
+    if: github.ref_type == 'tag'
     strategy:
       fail-fast: false
       matrix:
@@ -43,6 +123,15 @@ jobs:
       - name: Run build_runner
         run: flutter pub run build_runner build --delete-conflicting-outputs
 
+      - name: Set version variable
+        id: version
+        run: |
+          if [[ ${{ github.ref_type }} == "tag" ]]; then
+            echo "version=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+          else
+            echo "version=dev-$(echo ${{ github.sha }} | cut -c1-7)" >> $GITHUB_OUTPUT
+          fi
+
       - name: Enable desktop support
         if: matrix.platform != 'android'
         run: flutter config --enable-${{ matrix.platform }}-desktop
@@ -50,15 +139,27 @@ jobs:
       # Build Steps
       - name: Build Android APK
         if: matrix.platform == 'android'
-        run: flutter build apk --release --dart-define=APP_VERSION=${{ github.ref_name }}
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          VERSION=${VERSION#v}
+          echo "Building Android with version: $VERSION"
+          flutter build apk --release --dart-define=APP_VERSION=$VERSION
 
       - name: Build Windows
         if: matrix.platform == 'windows'
-        run: flutter build windows --release --dart-define=APP_VERSION=${{ github.ref_name }}
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          VERSION=${VERSION#v}
+          echo "Building Windows with version: $VERSION"
+          flutter build windows --release --dart-define=APP_VERSION=$VERSION
 
       - name: Build macOS
         if: matrix.platform == 'macos'
-        run: flutter build macos --release --dart-define=APP_VERSION=${{ github.ref_name }}
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          VERSION=${VERSION#v}
+          echo "Building macOS with version: $VERSION"
+          flutter build macos --release --dart-define=APP_VERSION=$VERSION
 
       # Packaging and Uploading Artifacts
       - name: Package Windows build
@@ -95,6 +196,7 @@ jobs:
     name: Create GitHub Release
     runs-on: ubuntu-latest
     needs: [build_cross_platform]
+    if: github.ref_type == 'tag'
     permissions:
       contents: write
 
@@ -114,11 +216,47 @@ jobs:
           body: |
             🎉 QR Trans ${{ github.ref_name }} 版本发布
             
-            ## 下载
-            - **Android**: qr-trans-android-${{ github.ref_name }}/app-release.apk
-            - **Windows**: qr-trans-windows-${{ github.ref_name }}.zip
-            - **macOS**: qr-trans-macos-${{ github.ref_name }}.zip
+            ## 🌐 在线体验
+            **立即使用 Web 版本**: [![Web App](https://img.shields.io/badge/Web_App-立即体验-2196F3?style=for-the-badge)](https://yourusername.github.io/qr_trans/)
             
-            ## 更新内容
-            请查看提交历史了解详细更新内容。
+            > 🔥 **新功能**: Web 版本现已支持！无需下载安装，在浏览器中直接使用
+            
+            ## 📱 下载客户端
+            | 平台 | 下载链接 | 说明 |
+            |------|----------|------|
+            | 🌐 **Web** | [在线使用](https://yourusername.github.io/qr_trans/) | 推荐！即开即用，支持所有现代浏览器 |
+            | 🤖 **Android** | [APK 文件](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/app-release.apk) | 适用于 Android 5.0+ |
+            | 🪟 **Windows** | [ZIP 压缩包](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/qr-trans-windows-${{ github.ref_name }}.zip) | 解压后运行 qr_trans.exe |
+            | 🍎 **macOS** | [ZIP 压缩包](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/qr-trans-macos-${{ github.ref_name }}.zip) | 支持 macOS 10.14+ |
+            
+            ## ✨ 版本特性
+            - ✅ **全新 Web 版本**: 浏览器直接运行，无需安装
+            - ✅ **CanvasKit 渲染**: 高性能图形渲染，流畅体验
+            - ✅ **PWA 支持**: 可安装到桌面，离线使用
+            - ✅ **响应式设计**: 完美适配桌面和移动端
+            - ✅ **文件拖拽**: 支持拖拽上传文件
+            - ✅ **剪贴板传输**: 快速传输文本内容
+            
+            ## 🚀 快速开始
+            
+            ### Web 版本（推荐）
+            1. 点击上方 "立即体验" 链接
+            2. 开始传输文件！
+            
+            ### 客户端版本
+            1. 下载对应平台的客户端
+            2. 安装或解压运行
+            3. 享受完整功能体验
+            
+            ## 📖 使用说明
+            - **发送**: 选择文件 → 生成二维码 → 对方扫描接收
+            - **接收**: 点击扫描 → 扫描二维码 → 自动保存文件
+            - **设置**: 可调节二维码大小、传输速度等参数
+            
+            ## 🔧 更新内容
+            请查看 [提交历史](https://github.com/${{ github.repository }}/commits) 了解详细更新内容。
+            
+            ---
+            
+            💡 **提示**: Web 版本功能与桌面版基本一致，推荐优先体验！
           prerelease: ${{ contains(github.ref, '-alpha') || contains(github.ref, '-beta') || contains(github.ref, '-rc') }}

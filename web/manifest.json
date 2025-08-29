@@ -1,35 +1,61 @@
 {
-    "name": "qr_trans",
-    "short_name": "qr_trans",
-    "start_url": ".",
+    "name": "QR Trans - 二维码文件传输",
+    "short_name": "QR Trans",
+    "description": "通过二维码实现文件传输的Web应用",
+    "start_url": "./",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "theme_color": "#2196F3",
+    "background_color": "#FFFFFF",
     "orientation": "portrait-primary",
-    "prefer_related_applications": false,
+    "scope": "./",
+    "lang": "zh-CN",
+    "categories": ["productivity", "utilities"],
     "icons": [
         {
             "src": "icons/Icon-192.png",
             "sizes": "192x192",
-            "type": "image/png"
+            "type": "image/png",
+            "purpose": "any maskable"
         },
+        {
+            "src": "icons/Icon-512.png", 
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "any maskable"
+        }
+    ],
+    "screenshots": [
         {
             "src": "icons/Icon-512.png",
             "sizes": "512x512",
-            "type": "image/png"
+            "type": "image/png",
+            "form_factor": "wide"
+        }
+    ],
+    "shortcuts": [
+        {
+            "name": "发送文件",
+            "short_name": "发送",
+            "description": "选择文件并生成二维码",
+            "url": "./#/send",
+            "icons": [
+                {
+                    "src": "icons/Icon-192.png",
+                    "sizes": "192x192"
+                }
+            ]
         },
         {
-            "src": "icons/Icon-maskable-192.png",
-            "sizes": "192x192",
-            "type": "image/png",
-            "purpose": "maskable"
-        },
-        {
-            "src": "icons/Icon-maskable-512.png",
-            "sizes": "512x512",
-            "type": "image/png",
-            "purpose": "maskable"
+            "name": "接收文件", 
+            "short_name": "接收",
+            "description": "扫描二维码接收文件",
+            "url": "./#/receive",
+            "icons": [
+                {
+                    "src": "icons/Icon-192.png",
+                    "sizes": "192x192"
+                }
+            ]
         }
     ]
 }

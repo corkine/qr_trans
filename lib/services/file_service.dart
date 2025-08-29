@@ -5,6 +5,7 @@ import 'dart:io';
 import 'dart:typed_data';
 import 'package:crypto/crypto.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:uuid/uuid.dart';
 import '../models/transfer_metadata.dart';
@@ -70,6 +71,37 @@ class FileService {
     return chunks;
   }
 
+  /// Web平台专用：将字节数组分割为多个数据块
+  static Future<List<FileChunk>> splitBytesIntoChunks(
+    Uint8List bytes,
+    int chunkSize,
+    String fileName,
+  ) async {
+    if (!kIsWeb) {
+      throw UnsupportedError('此方法仅在Web平台可用');
+    }
+
+    final transferId = _uuid.v4();
+    final chunks = <FileChunk>[];
+
+    for (int i = 0; i < bytes.length; i += chunkSize) {
+      final end = (i + chunkSize < bytes.length) ? i + chunkSize : bytes.length;
+      final chunkData = bytes.sublist(i, end);
+      final chunkIndex = i ~/ chunkSize;
+
+      final chunk = FileChunk(
+        transferId: transferId,
+        chunkIndex: chunkIndex,
+        data: base64Encode(chunkData),
+        checksum: _calculateChecksum(chunkData),
+      );
+
+      chunks.add(chunk);
+    }
+
+    return chunks;
+  }
+
   /// 创建传输元数据
   static Future<TransferMetadata> createTransferMetadata(
     File file,
@@ -78,6 +110,26 @@ class FileService {
   }) async {
     final bytes = await file.readAsBytes();
     final fileName = file.path.split('/').last;
+
+    return TransferMetadata(
+      transferId: transferId ?? _uuid.v4(),
+      fileName: fileName,
+      totalChunks: totalChunks,
+      fileSize: bytes.length,
+      checksum: _calculateChecksum(bytes),
+    );
+  }
+
+  /// Web平台专用：从字节数组创建传输元数据
+  static TransferMetadata createTransferMetadataFromBytes(
+    Uint8List bytes,
+    String fileName,
+    int totalChunks, {
+    String? transferId,
+  }) {
+    if (!kIsWeb) {
+      throw UnsupportedError('此方法仅在Web平台可用');
+    }
 
     return TransferMetadata(
       transferId: transferId ?? _uuid.v4(),

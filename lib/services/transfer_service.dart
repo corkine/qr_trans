@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
+import 'package:flutter/foundation.dart';
 import 'package:qr_trans/services/qr_service.dart';
 
 import '../models/app_settings.dart';
@@ -79,6 +81,63 @@ class TransferService {
         _currentState.copyWith(
           status: TransferStatus.error,
           errorMessage: '文件准备失败: $e',
+        ),
+      );
+    }
+  }
+
+  /// Web平台专用：准备发送字节数组
+  static Future<void> prepareSendFromBytes(
+    Uint8List bytes, 
+    String fileName, 
+    AppSettings settings
+  ) async {
+    try {
+      if (!kIsWeb) {
+        throw UnsupportedError('此方法仅在Web平台可用');
+      }
+
+      _updateState(_currentState.copyWith(status: TransferStatus.preparing));
+
+      // 计算实际的chunk大小
+      final actualChunkSize = QrService.calculateChunkSize(
+        settings.chunkSizeRatio,
+      );
+      
+      final chunks = await FileService.splitBytesIntoChunks(
+        bytes,
+        actualChunkSize,
+        fileName,
+      );
+      
+      final metadata = FileService.createTransferMetadataFromBytes(
+        bytes,
+        fileName,
+        chunks.length,
+        transferId: chunks.isNotEmpty ? chunks.first.transferId : null,
+      );
+
+      // 创建新的传输进度
+      final progress = TransferProgress(
+        transferId: metadata.transferId,
+        receivedChunks: 0,
+        totalChunks: metadata.totalChunks,
+        chunks: {},
+        metadata: metadata,
+      );
+
+      _updateState(
+        _currentState.copyWith(
+          status: TransferStatus.ready,
+          currentTransferId: metadata.transferId,
+          activeTransfer: progress, // 单个传输
+        ),
+      );
+    } catch (e) {
+      _updateState(
+        _currentState.copyWith(
+          status: TransferStatus.error,
+          errorMessage: '字节数组准备失败: $e',
         ),
       );
     }

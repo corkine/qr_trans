@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
+import 'dart:typed_data';
+import 'package:flutter/foundation.dart';
 import '../models/app_settings.dart';
 import 'file_service.dart';
 import 'transfer_service.dart';
@@ -115,6 +117,61 @@ class QrService {
       );
 
       await TransferService.prepareSendFile(file, settings);
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  /// Web平台专用：从字节数组准备QR码数据
+  static Future<void> prepareQrDataFromBytes(
+    Uint8List bytes, 
+    String fileName, 
+    AppSettings settings
+  ) async {
+    try {
+      if (!kIsWeb) {
+        throw UnsupportedError('此方法仅在Web平台可用');
+      }
+
+      // 根据用户比例设置计算实际chunk大小
+      int effectiveChunkSize = calculateChunkSize(settings.chunkSizeRatio);
+
+      print(
+        'QR Service: 从字节数组准备数据 (Web) - 用户设置比例: ${settings.chunkSizeRatio.toInt()}%，实际块大小: $effectiveChunkSize 字节',
+      );
+
+      // 直接从字节数组分片
+      final chunks = await FileService.splitBytesIntoChunks(
+        bytes,
+        effectiveChunkSize,
+        fileName,
+      );
+      
+      final metadata = FileService.createTransferMetadataFromBytes(
+        bytes,
+        fileName,
+        chunks.length,
+        transferId: chunks.isNotEmpty ? chunks.first.transferId : null,
+      );
+
+      // 生成QR数据列表
+      final qrDataList = <String>[];
+      qrDataList.add(jsonEncode(metadata.toJson()));
+      for (final chunk in chunks) {
+        qrDataList.add(jsonEncode(chunk.toJson()));
+      }
+
+      _qrDataList = qrDataList;
+      _currentIndex = 0;
+      _currentQrData = qrDataList.first; // 显示第一个（元数据）
+      _notifyQrListeners();
+
+      print(
+        'QR Service: 生成 ${chunks.length} 个数据块，总共 ${_qrDataList!.length} 个二维码',
+      );
+
+      // Web平台直接设置状态，不需要文件操作
+      await TransferService.prepareSendFromBytes(bytes, fileName, settings);
     } catch (e) {
       rethrow;
     }

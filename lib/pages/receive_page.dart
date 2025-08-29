@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:open_file/open_file.dart';
+import 'package:qr_trans/util.dart';
 import 'package:share_plus/share_plus.dart';
 import '../models/app_settings.dart';
 import '../services/file_service.dart';
@@ -23,26 +24,14 @@ class _ReceivePageState extends State<ReceivePage> {
   bool _scannerActive = false;
   AppState? _transferState;
   bool _mounted = true;
-
-  /// 检查当前平台是否支持扫描器
-  bool get _isScannerSupported {
-    if (kIsWeb) {
-      // Web平台支持，但需要HTTPS
-      return true;
-    }
-
-    // 移动端支持
-    if (Platform.isAndroid || Platform.isIOS) {
-      return true;
-    }
-
-    // 桌面端通常不支持或支持有限
-    return false;
-  }
+  final bool _isScannerSupported = isScannerSupported();
 
   @override
   void initState() {
     super.initState();
+    if (!_isScannerSupported) {
+      return;
+    }
     _loadReceivedFiles();
 
     // 彻底清理所有传输数据和状态

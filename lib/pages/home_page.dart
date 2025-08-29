@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:qr_trans/util.dart';
 import 'send_page.dart';
 import 'receive_page.dart';
 import 'settings_page.dart';
@@ -54,6 +55,16 @@ class _HomePageState extends State<HomePage> {
                   '欢迎使用 QR 传输',
                   style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                     fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Transform.translate(
+                  offset: const Offset(0, 5),
+                  child: Text(
+                    getAppVersion(),
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
                   ),
                 ),
               ],
