@@ -10,7 +10,7 @@ on:
   workflow_dispatch:
     inputs:
       build_target:
-        description: '选择构建目标'
+        description: 'Choose Build Target'
         required: true
         default: 'all'
         type: choice
@@ -43,11 +43,12 @@ jobs:
       - name: Get Flutter dependencies
         run: flutter pub get
 
-      - name: Run build_runner
-        run: flutter pub run build_runner build --delete-conflicting-outputs
+      # - name: Run build_runner
+      #   run: flutter pub run build_runner build --delete-conflicting-outputs
 
       - name: Set version variable
         id: version
+        shell: bash
         run: |
           if [[ ${{ github.ref_type }} == "tag" ]]; then
             echo "version=${{ github.ref_name }}" >> $GITHUB_OUTPUT
@@ -56,9 +57,9 @@ jobs:
           fi
 
       - name: Build Web (CanvasKit)
+        shell: bash
         run: |
           VERSION="${{ steps.version.outputs.version }}"
-          # 移除 v 前缀（如果存在）
           VERSION=${VERSION#v}
           echo "Building with version: $VERSION"
           
@@ -69,13 +70,12 @@ jobs:
             --dart-define=APP_VERSION=$VERSION
 
       - name: Setup Web deployment
+        shell: bash
         run: |
-          # 直接使用 CanvasKit 构建作为最终版本
           mv build/web build/web-final
-          
-          # 添加版本信息到 index.html
+        
           if [ -f "build/web-final/index.html" ]; then
-            sed -i 's/<title>qr_trans<\/title>/<title>QR Trans - 二维码文件传输 (v${{ steps.version.outputs.version }})<\/title>/' build/web-final/index.html
+            sed -i 's/<title>qr_trans<\/title>/<title>QR Trans - 二维码文件传输 (${{ steps.version.outputs.version }})<\/title>/' build/web-final/index.html
           fi
 
       - name: Setup Pages
@@ -133,11 +133,25 @@ jobs:
       - name: Get Flutter dependencies
         run: flutter pub get
 
-      - name: Run build_runner
-        run: flutter pub run build_runner build --delete-conflicting-outputs
+      # - name: Run build_runner
+      #   run: flutter pub run build_runner build --delete-conflicting-outputs
 
-      - name: Set version variable
-        id: version
+      - name: Set version variable (Windows)
+        if: matrix.platform == 'windows'
+        id: version-windows
+        shell: pwsh
+        run: |
+          if ("${{ github.ref_type }}" -eq "tag") {
+            "version=${{ github.ref_name }}" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          } else {
+            $shortSha = "${{ github.sha }}".Substring(0, 7)
+            "version=dev-$shortSha" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          }
+      
+      - name: Set version variable (Unix)
+        if: matrix.platform != 'windows'
+        id: version-unix
+        shell: bash
         run: |
           if [[ ${{ github.ref_type }} == "tag" ]]; then
             echo "version=${{ github.ref_name }}" >> $GITHUB_OUTPUT
@@ -152,24 +166,29 @@ jobs:
       # Build Steps
       - name: Build Android APK
         if: matrix.platform == 'android' && (github.ref_type == 'tag' || github.event.inputs.build_target == 'all' || github.event.inputs.build_target == 'android')
+        shell: bash
         run: |
-          VERSION="${{ steps.version.outputs.version }}"
+          VERSION="${{ steps.version-unix.outputs.version }}"
           VERSION=${VERSION#v}
           echo "Building Android with version: $VERSION"
           flutter build apk --release --dart-define=APP_VERSION=$VERSION
 
       - name: Build Windows
         if: matrix.platform == 'windows' && (github.ref_type == 'tag' || github.event.inputs.build_target == 'all' || github.event.inputs.build_target == 'windows')
+        shell: pwsh
         run: |
-          VERSION="${{ steps.version.outputs.version }}"
-          VERSION=${VERSION#v}
-          echo "Building Windows with version: $VERSION"
+          $VERSION = "${{ steps.version-windows.outputs.version }}"
+          if ($VERSION.StartsWith("v")) {
+            $VERSION = $VERSION.Substring(1)
+          }
+          Write-Host "Building Windows with version: $VERSION"
           flutter build windows --release --dart-define=APP_VERSION=$VERSION
 
       - name: Build macOS
         if: matrix.platform == 'macos' && (github.ref_type == 'tag' || github.event.inputs.build_target == 'all' || github.event.inputs.build_target == 'macos')
+        shell: bash
         run: |
-          VERSION="${{ steps.version.outputs.version }}"
+          VERSION="${{ steps.version-unix.outputs.version }}"
           VERSION=${VERSION#v}
           echo "Building macOS with version: $VERSION"
           flutter build macos --release --dart-define=APP_VERSION=$VERSION
@@ -220,6 +239,7 @@ jobs:
           path: artifacts/
       
       - name: List downloaded files
+        shell: bash
         run: ls -R artifacts
 
       - name: Create Release and Upload Assets
