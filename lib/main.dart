@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'pages/home_page.dart';
-import 'services/settings_service.dart';
 
 void main() {
   runApp(const QrTransApp());

@@ -24,6 +24,8 @@ String getAppVersion() {
   return kAppVersion;
 }
 
+String appName = 'QR Trans';
+
 /// 获取完整的版本信息（包含平台信息）
 String getFullVersionInfo() {
   String platform;
@@ -43,5 +45,5 @@ String getFullVersionInfo() {
     platform = 'Unknown';
   }
   
-  return 'QR Trans v$kAppVersion ($platform)';
+  return '$appName ($kAppVersion, $platform)';
 }
