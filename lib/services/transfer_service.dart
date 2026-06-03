@@ -333,14 +333,29 @@ class TransferService {
   }
 
   /// 获取当前传输中漏扫的页码列表（页码从1开始，第1页为元数据）
+  /// 只计算当前已扫描范围内缺失的页，当前页往上的都不算漏扫
   /// 返回排序后的页码列表，空列表表示没有漏扫
   static List<int> getMissingPages(TransferProgress transfer) {
     final dataChunks = transfer.metadata?.totalChunks ?? 0;
     final receivedChunks = transfer.chunks;
     final missing = <int>[];
 
-    // 检查数据块页（页码 = chunkIndex + 2）
-    for (int i = 0; i < dataChunks; i++) {
+    // 找到已接收的最大 chunk 索引，作为"当前页"位置
+    int maxReceivedIndex = -1;
+    for (final key in receivedChunks.keys) {
+      if (key > maxReceivedIndex) {
+        maxReceivedIndex = key;
+      }
+    }
+
+    // 没有接收到数据块，不存在漏扫
+    if (maxReceivedIndex < 0) return missing;
+
+    // 只检查到已接收的最大索引为止，当前页往上的都不算漏扫
+    final checkEnd = maxReceivedIndex < dataChunks
+        ? maxReceivedIndex
+        : dataChunks - 1;
+    for (int i = 0; i <= checkEnd; i++) {
       if (!receivedChunks.containsKey(i)) {
         missing.add(i + 2); // 页码从2开始（第1页是元数据）
       }
