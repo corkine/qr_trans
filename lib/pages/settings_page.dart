@@ -64,20 +64,23 @@ class _SettingsPageState extends State<SettingsPage> {
             ? const Center(child: CircularProgressIndicator())
             : _error != null
             ? _buildErrorView(context, _error!)
-            : Center(
+            : Scrollbar(
                 child: SingleChildScrollView(
+                  primary: true,
                   padding: const EdgeInsets.only(bottom: 16),
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 600),
-                    child: Column(
-                      spacing: 16,
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        _buildDisplaySection(context, _settings!),
-                        _buildTransferSection(context, _settings!),
-                        _buildAdvancedSection(context, _settings!),
-                        _buildAppSection(context, _settings!),
-                      ],
+                  child: Center(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 600),
+                      child: Column(
+                        spacing: 16,
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          _buildDisplaySection(context, _settings!),
+                          _buildTransferSection(context, _settings!),
+                          _buildAdvancedSection(context, _settings!),
+                          _buildAppSection(context, _settings!),
+                        ],
+                      ),
                     ),
                   ),
                 ),

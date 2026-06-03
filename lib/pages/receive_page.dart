@@ -1,8 +1,9 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
+import 'package:mime/mime.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
-import 'package:open_file/open_file.dart';
+import 'package:open_filex/open_filex.dart';
 import 'package:qr_trans/util.dart';
 import 'package:share_plus/share_plus.dart';
 import '../models/app_settings.dart';
@@ -140,10 +141,7 @@ class _ReceivePageState extends State<ReceivePage> {
       if (_receivedFiles.isEmpty) {
         return _buildStartScanningCard();
       }
-      return SingleChildScrollView(
-        padding: const EdgeInsets.only(bottom: 32),
-        child: _buildReceivedFilesList(context),
-      );
+      return _buildReceivedFilesList(context);
     }
 
     return SingleChildScrollView(
@@ -287,6 +285,9 @@ class _ReceivePageState extends State<ReceivePage> {
     // 计算漏扫页码
     final missingPages = TransferService.getMissingPages(activeTransfer);
 
+    // 计算当前发送端播放到的最大页码（已接收 + 漏扫的）
+    final currentDisplayPage = receivedChunks + missingPages.length;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -310,7 +311,7 @@ class _ReceivePageState extends State<ReceivePage> {
         LinearProgressIndicator(value: progress.clamp(0.0, 1.0)),
         const SizedBox(height: 4),
         Text(
-          '$receivedChunks / $totalChunks 页',
+          '$currentDisplayPage / $totalChunks 页',
           style: Theme.of(context).textTheme.bodySmall,
         ),
         if (missingPages.isNotEmpty) ...[
@@ -712,7 +713,8 @@ class _ReceivePageState extends State<ReceivePage> {
 
   Future<void> _openFile(BuildContext context, File file) async {
     try {
-      final result = await OpenFile.open(file.path);
+      final mimeType = lookupMimeType(file.path);
+      final result = await OpenFilex.open(file.path, type: mimeType);
 
       // 检查打开结果
       if (result.type != ResultType.done) {

@@ -1,17 +1,13 @@
 // ignore_for_file: avoid_print
 
-import 'dart:convert';
 import 'dart:io';
-import 'dart:typed_data';
-import 'package:crypto/crypto.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:uuid/uuid.dart';
 import '../models/transfer_metadata.dart';
+import '../util.dart';
 
 class FileService {
-  static const _uuid = Uuid();
 
   /// 选择文件并返回文件信息
   static Future<File?> pickFile() async {
@@ -50,7 +46,7 @@ class FileService {
     int chunkSize,
   ) async {
     final bytes = await file.readAsBytes();
-    final transferId = _uuid.v4();
+    final transferId = ShortId.generate();
     final chunks = <FileChunk>[];
 
     for (int i = 0; i < bytes.length; i += chunkSize) {
@@ -61,8 +57,8 @@ class FileService {
       final chunk = FileChunk(
         transferId: transferId,
         chunkIndex: chunkIndex,
-        data: base64Encode(chunkData),
-        checksum: _calculateChecksum(chunkData),
+        data: Base45.encode(chunkData),
+        checksum: Crc32.compute(chunkData),
       );
 
       chunks.add(chunk);
@@ -81,7 +77,7 @@ class FileService {
       throw UnsupportedError('此方法仅在Web平台可用');
     }
 
-    final transferId = _uuid.v4();
+    final transferId = ShortId.generate();
     final chunks = <FileChunk>[];
 
     for (int i = 0; i < bytes.length; i += chunkSize) {
@@ -92,8 +88,8 @@ class FileService {
       final chunk = FileChunk(
         transferId: transferId,
         chunkIndex: chunkIndex,
-        data: base64Encode(chunkData),
-        checksum: _calculateChecksum(chunkData),
+        data: Base45.encode(chunkData),
+        checksum: Crc32.compute(chunkData),
       );
 
       chunks.add(chunk);
@@ -112,11 +108,11 @@ class FileService {
     final fileName = file.path.split('/').last;
 
     return TransferMetadata(
-      transferId: transferId ?? _uuid.v4(),
+      transferId: transferId ?? ShortId.generate(),
       fileName: fileName,
       totalChunks: totalChunks,
       fileSize: bytes.length,
-      checksum: _calculateChecksum(bytes),
+      checksum: Crc32.compute(bytes),
     );
   }
 
@@ -132,11 +128,11 @@ class FileService {
     }
 
     return TransferMetadata(
-      transferId: transferId ?? _uuid.v4(),
+      transferId: transferId ?? ShortId.generate(),
       fileName: fileName,
       totalChunks: totalChunks,
       fileSize: bytes.length,
-      checksum: _calculateChecksum(bytes),
+      checksum: Crc32.compute(bytes),
     );
   }
 
@@ -163,12 +159,12 @@ class FileService {
         throw Exception('缺少数据块 $i');
       }
 
-      final chunkData = base64Decode(chunks[i]!);
+      final chunkData = Base45.decode(chunks[i]!);
       assembledBytes.addAll(chunkData);
     }
 
     // 验证文件完整性
-    final assembledChecksum = _calculateChecksum(
+    final assembledChecksum = Crc32.compute(
       Uint8List.fromList(assembledBytes),
     );
     if (assembledChecksum != metadata.checksum) {
@@ -245,19 +241,13 @@ class FileService {
   /// 验证数据块的完整性
   static Future<bool> validateChunk(FileChunk chunk) async {
     try {
-      final chunkData = base64Decode(chunk.data);
-      final calculatedChecksum = _calculateChecksum(chunkData);
+      final chunkData = Base45.decode(chunk.data);
+      final calculatedChecksum = Crc32.compute(chunkData);
       return calculatedChecksum == chunk.checksum;
     } catch (e) {
-      // base64解码失败或其他错误
+      // Base45解码失败或其他错误
       return false;
     }
-  }
-
-  /// 计算数据校验和
-  static String _calculateChecksum(Uint8List data) {
-    final digest = sha256.convert(data);
-    return digest.toString();
   }
 
   // 已移除恢复功能
