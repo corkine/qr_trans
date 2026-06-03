@@ -88,9 +88,9 @@ class TransferService {
 
   /// Web平台专用：准备发送字节数组
   static Future<void> prepareSendFromBytes(
-    Uint8List bytes, 
-    String fileName, 
-    AppSettings settings
+    Uint8List bytes,
+    String fileName,
+    AppSettings settings,
   ) async {
     try {
       if (!kIsWeb) {
@@ -103,13 +103,13 @@ class TransferService {
       final actualChunkSize = QrService.calculateChunkSize(
         settings.chunkSizeRatio,
       );
-      
+
       final chunks = await FileService.splitBytesIntoChunks(
         bytes,
         actualChunkSize,
         fileName,
       );
-      
+
       final metadata = FileService.createTransferMetadataFromBytes(
         bytes,
         fileName,
@@ -216,8 +216,8 @@ class TransferService {
     // 创建新的传输进度
     final progress = TransferProgress(
       transferId: metadata.transferId,
-      receivedChunks: 0,
-      totalChunks: metadata.totalChunks,
+      receivedChunks: 1, // 元数据视为第1页
+      totalChunks: metadata.totalChunks + 1, // 数据块数 + 元数据页
       chunks: {},
       metadata: metadata,
     );
@@ -280,7 +280,7 @@ class TransferService {
     updatedChunks[chunk.chunkIndex] = chunk.data;
 
     final updatedTransfer = transfer.copyWith(
-      receivedChunks: updatedChunks.length,
+      receivedChunks: updatedChunks.length + 1, // 数据块数 + 元数据页
       chunks: updatedChunks,
     );
 
@@ -330,6 +330,48 @@ class TransferService {
       );
       return null;
     }
+  }
+
+  /// 获取当前传输中漏扫的页码列表（页码从1开始，第1页为元数据）
+  /// 返回排序后的页码列表，空列表表示没有漏扫
+  static List<int> getMissingPages(TransferProgress transfer) {
+    final dataChunks = transfer.metadata?.totalChunks ?? 0;
+    final receivedChunks = transfer.chunks;
+    final missing = <int>[];
+
+    // 检查数据块页（页码 = chunkIndex + 2）
+    for (int i = 0; i < dataChunks; i++) {
+      if (!receivedChunks.containsKey(i)) {
+        missing.add(i + 2); // 页码从2开始（第1页是元数据）
+      }
+    }
+
+    return missing;
+  }
+
+  /// 将页码列表压缩为紧凑的字符串表示，如 "18, 19, 21" 或连续区间 "18-19, 21"
+  static String formatMissingPages(List<int> pages) {
+    if (pages.isEmpty) return '';
+
+    final parts = <String>[];
+    int rangeStart = pages.first;
+    int rangeEnd = pages.first;
+
+    for (int i = 1; i < pages.length; i++) {
+      if (pages[i] == rangeEnd + 1) {
+        rangeEnd = pages[i];
+      } else {
+        parts.add(
+          rangeStart == rangeEnd ? '$rangeStart' : '$rangeStart-$rangeEnd',
+        );
+        rangeStart = pages[i];
+        rangeEnd = pages[i];
+      }
+    }
+    // 最后一段
+    parts.add(rangeStart == rangeEnd ? '$rangeStart' : '$rangeStart-$rangeEnd');
+
+    return '${parts.length} 处: ${parts.join(', ')}';
   }
 
   /// 重置状态

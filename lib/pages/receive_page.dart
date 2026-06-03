@@ -1,5 +1,4 @@
 import 'dart:io';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
@@ -138,9 +137,13 @@ class _ReceivePageState extends State<ReceivePage> {
 
   Widget _buildLayout(BuildContext context, AppState transferState) {
     if (!_scannerActive) {
-      return _receivedFiles.isEmpty
-          ? _buildStartScanningCard()
-          : _buildReceivedFilesList(context);
+      if (_receivedFiles.isEmpty) {
+        return _buildStartScanningCard();
+      }
+      return SingleChildScrollView(
+        padding: const EdgeInsets.only(bottom: 32),
+        child: _buildReceivedFilesList(context),
+      );
     }
 
     return SingleChildScrollView(
@@ -281,6 +284,9 @@ class _ReceivePageState extends State<ReceivePage> {
 
     // print('Progress bar: received=$receivedChunks, total=$totalChunks, progress=$progress');
 
+    // 计算漏扫页码
+    final missingPages = TransferService.getMissingPages(activeTransfer);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -304,9 +310,40 @@ class _ReceivePageState extends State<ReceivePage> {
         LinearProgressIndicator(value: progress.clamp(0.0, 1.0)),
         const SizedBox(height: 4),
         Text(
-          '$receivedChunks / $totalChunks 片段',
+          '$receivedChunks / $totalChunks 页',
           style: Theme.of(context).textTheme.bodySmall,
         ),
+        if (missingPages.isNotEmpty) ...[
+          const SizedBox(height: 6),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: Colors.orange.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(color: Colors.orange.withValues(alpha: 0.4)),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.warning_amber_rounded,
+                  size: 14,
+                  color: Colors.orange.shade700,
+                ),
+                const SizedBox(width: 4),
+                Flexible(
+                  child: Text(
+                    '漏扫 ${TransferService.formatMissingPages(missingPages)}',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Colors.orange.shade800,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ],
     );
   }
@@ -425,6 +462,10 @@ class _ReceivePageState extends State<ReceivePage> {
   Widget _buildFileItem(BuildContext context, File file) {
     final fileName = file.path.split('/').last;
     final fileSize = file.lengthSync();
+    final modifiedTime = file.lastModifiedSync();
+    final timeStr =
+        '${modifiedTime.year}-${modifiedTime.month.toString().padLeft(2, '0')}-${modifiedTime.day.toString().padLeft(2, '0')} '
+        '${modifiedTime.hour.toString().padLeft(2, '0')}:${modifiedTime.minute.toString().padLeft(2, '0')}';
 
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
@@ -490,21 +531,35 @@ class _ReceivePageState extends State<ReceivePage> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          fileName,
+                          _truncateFileName(fileName),
                           style: Theme.of(context).textTheme.bodyMedium
                               ?.copyWith(fontWeight: FontWeight.w500),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
                         const SizedBox(height: 2),
-                        Text(
-                          _formatFileSize(fileSize),
-                          style: Theme.of(context).textTheme.bodySmall
-                              ?.copyWith(
-                                color: Theme.of(
-                                  context,
-                                ).colorScheme.onSurfaceVariant,
-                              ),
+                        Row(
+                          children: [
+                            Text(
+                              _formatFileSize(fileSize),
+                              style: Theme.of(context).textTheme.bodySmall
+                                  ?.copyWith(
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.onSurfaceVariant,
+                                  ),
+                            ),
+                            const SizedBox(width: 12),
+                            Text(
+                              timeStr,
+                              style: Theme.of(context).textTheme.bodySmall
+                                  ?.copyWith(
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.onSurfaceVariant,
+                                  ),
+                            ),
+                          ],
                         ),
                       ],
                     ),
@@ -622,6 +677,10 @@ class _ReceivePageState extends State<ReceivePage> {
   Future<void> _loadReceivedFiles() async {
     try {
       final files = await FileService.getReceivedFiles();
+      // 按最后修改时间倒序排列（最新的在前）
+      files.sort(
+        (a, b) => b.lastModifiedSync().compareTo(a.lastModifiedSync()),
+      );
       setState(() {
         _receivedFiles = files;
       });
@@ -831,6 +890,13 @@ class _ReceivePageState extends State<ReceivePage> {
         }
       }
     }
+  }
+
+  /// 文件名中间省略（保留前后，中间用 ... 替代）
+  String _truncateFileName(String fileName, {int maxLength = 30}) {
+    if (fileName.length <= maxLength) return fileName;
+    final half = (maxLength - 3) ~/ 2;
+    return '${fileName.substring(0, half)}...${fileName.substring(fileName.length - half)}';
   }
 
   String _formatFileSize(int bytes) {
