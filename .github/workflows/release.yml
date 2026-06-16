@@ -1,10 +1,10 @@
 name: Release CI
 
 on:
-  push:
-    branches:
-      - main
-      - master
+  # push:
+  #   branches:
+  #     - main
+  #     - master
   workflow_dispatch:
     inputs:
       build_target:
