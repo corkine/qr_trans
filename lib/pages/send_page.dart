@@ -27,7 +27,7 @@ class _SendPageState extends State<SendPage> {
   bool _isPlaying = false;
   AppSettings? _settings;
   AppState? _transferState;
-  String? _qrData;
+  Uint8List? _qrData;
   Map<String, int>? _playbackProgress;
   late FocusNode _focusNode;
   
@@ -65,7 +65,7 @@ class _SendPageState extends State<SendPage> {
     });
   }
 
-  void _onQrDataChanged(String? qrData) {
+  void _onQrDataChanged(Uint8List? qrData) {
     if (!mounted) return;
     setState(() {
       _qrData = qrData;
@@ -304,7 +304,7 @@ class _SendPageState extends State<SendPage> {
                       const SizedBox(width: 5),
                       if (_playbackProgress != null) ...[
                         Text(
-                          '• ${_playbackProgress!['total']} 个二维码 • ${_settings!.chunkSizeRatio.toInt()}% 数据密度',
+                          '• ${_playbackProgress!['total']} 个二维码',
                           style: Theme.of(context).textTheme.bodySmall
                               ?.copyWith(
                                 color: Theme.of(context).colorScheme.primary,
@@ -329,7 +329,7 @@ class _SendPageState extends State<SendPage> {
   }
 
   Widget _buildQrDisplayCard(
-    String? qrData,
+    Uint8List? qrData,
     AppSettings settings,
     Map<String, int>? playbackProgress,
     AppState transferState,
@@ -476,9 +476,9 @@ class _SendPageState extends State<SendPage> {
     );
   }
 
-  Widget _safeQrWidget(String qrData, AppSettings settings) {
+  Widget _safeQrWidget(Uint8List qrData, AppSettings settings) {
     const int maxBytesPerFrame = 10000; // 低于库限制 10208，留余量
-    final int dataLen = utf8.encode(qrData).length;
+    final int dataLen = qrData.length;
     if (dataLen > maxBytesPerFrame) {
       return Center(
         child: Padding(
@@ -505,12 +505,13 @@ class _SendPageState extends State<SendPage> {
 
     final size = MediaQuery.sizeOf(context);
 
-    return QrImageView(
-      data: qrData,
-      version: QrVersions.auto,
+    return QrImageView.withQr(
+      qr: QrCode.fromUint8List(
+        data: qrData,
+        errorCorrectLevel: settings.errorCorrectionLevel,
+      ),
       size: max(min(size.width, size.height) * 0.7, settings.qrSize),
       backgroundColor: Colors.white,
-      errorCorrectionLevel: settings.errorCorrectionLevel,
     );
   }
 
@@ -746,9 +747,7 @@ class _SendPageState extends State<SendPage> {
 
   Future<void> _prepareQrData(File file) async {
     try {
-      print(
-        'Send Page: 准备 QR 数据，当前设置比例: ${_settings?.chunkSizeRatio.toInt()}%',
-      );
+      print('Send Page: 准备 QR 数据');
       await QrService.prepareQrData(file, _settings!);
     } catch (e) {
       if (mounted) {

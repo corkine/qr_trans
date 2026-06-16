@@ -1,9 +1,8 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
-import 'dart:math' as math;
-import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
+import 'package:archive/archive.dart';
 import '../models/app_settings.dart';
 import 'file_service.dart';
 import 'transfer_service.dart';
@@ -11,18 +10,18 @@ import 'transfer_service.dart';
 /// 简化的QR服务，使用静态方法和回调替代Riverpod
 class QrService {
   // QR Generator 相关
-  static String? _currentQrData;
+  static Uint8List? _currentQrData;
   static Timer? _playbackTimer;
-  static List<String>? _qrDataList;
+  static List<Uint8List>? _qrDataList;
   static int _currentIndex = 0;
-  static final List<Function(String?)> _qrListeners = [];
+  static final List<Function(Uint8List?)> _qrListeners = [];
 
   // QR Scanner 相关
   static bool _scannerActive = false;
   static final List<Function(bool)> _scannerListeners = [];
 
   /// 当前二维码数据
-  static String? get currentQrData => _currentQrData;
+  static Uint8List? get currentQrData => _currentQrData;
 
   /// 扫描器是否激活
   static bool get scannerActive => _scannerActive;
@@ -35,11 +34,11 @@ class QrService {
   }
 
   // QR数据监听器管理
-  static void addQrListener(Function(String?) listener) {
+  static void addQrListener(Function(Uint8List?) listener) {
     _qrListeners.add(listener);
   }
 
-  static void removeQrListener(Function(String?) listener) {
+  static void removeQrListener(Function(Uint8List?) listener) {
     _qrListeners.remove(listener);
   }
 
@@ -64,30 +63,33 @@ class QrService {
     }
   }
 
-  /// 根据比例计算实际chunk大小
-  static int calculateChunkSize(double sizeRatio) {
-    // 定义基线：最小128字节，最大300字节（保守估计避免QR码超限）
-    const int minChunkSize = 128;
-    const int maxChunkSize = 2000;
-
-    // 根据比例（10-100%）计算实际大小
-    double ratio = (sizeRatio - 10.0) / 90.0; // 将10-100范围映射到0-1
-    ratio = math.max(0.0, math.min(1.0, ratio)); // 确保在0-1范围内
-
-    int actualSize = (minChunkSize + (maxChunkSize - minChunkSize) * ratio)
-        .round();
-    return actualSize;
+  /// 根据容错率级别计算实际chunk大小
+  static int calculateChunkSize(int errorCorrectionLevel) {
+    // 0=M, 1=L, 2=H, 3=Q
+    if (errorCorrectionLevel == 2) {
+      // H
+      return 1000;
+    } else if (errorCorrectionLevel == 3) {
+      // Q
+      return 1300;
+    } else if (errorCorrectionLevel == 0) {
+      // M
+      return 1800;
+    } else {
+      // L (1)
+      return 2300;
+    }
   }
 
   /// 准备QR码数据
   static Future<void> prepareQrData(File file, AppSettings settings) async {
     try {
-      // 根据用户比例设置计算实际chunk大小
-      int effectiveChunkSize = calculateChunkSize(settings.chunkSizeRatio);
-
-      print(
-        'QR Service: 开始准备数据 - 用户设置比例: ${settings.chunkSizeRatio.toInt()}%，实际块大小: $effectiveChunkSize 字节',
+      // 根据容错率设置计算实际chunk大小
+      int effectiveChunkSize = calculateChunkSize(
+        settings.errorCorrectionLevel,
       );
+
+      print('QR Service: 开始准备数据 - 实际块大小: $effectiveChunkSize 字节');
 
       // 使用计算得到的chunk大小直接分片
       final chunks = await FileService.splitFileIntoChunks(
@@ -101,10 +103,12 @@ class QrService {
       );
 
       // 生成QR数据列表
-      final qrDataList = <String>[];
-      qrDataList.add(jsonEncode(metadata.toJson()));
+      final qrDataList = <Uint8List>[];
+      final metaBytes = utf8.encode(jsonEncode(metadata.toJson()));
+      qrDataList.add(Uint8List.fromList(ZLibEncoder().encode(metaBytes)));
       for (final chunk in chunks) {
-        qrDataList.add(jsonEncode(chunk.toJson()));
+        final chunkBytes = utf8.encode(jsonEncode(chunk.toJson()));
+        qrDataList.add(Uint8List.fromList(ZLibEncoder().encode(chunkBytes)));
       }
 
       _qrDataList = qrDataList;
@@ -124,21 +128,21 @@ class QrService {
 
   /// Web平台专用：从字节数组准备QR码数据
   static Future<void> prepareQrDataFromBytes(
-    Uint8List bytes, 
-    String fileName, 
-    AppSettings settings
+    Uint8List bytes,
+    String fileName,
+    AppSettings settings,
   ) async {
     try {
       if (!kIsWeb) {
         throw UnsupportedError('此方法仅在Web平台可用');
       }
 
-      // 根据用户比例设置计算实际chunk大小
-      int effectiveChunkSize = calculateChunkSize(settings.chunkSizeRatio);
-
-      print(
-        'QR Service: 从字节数组准备数据 (Web) - 用户设置比例: ${settings.chunkSizeRatio.toInt()}%，实际块大小: $effectiveChunkSize 字节',
+      // 根据容错率设置计算实际chunk大小
+      int effectiveChunkSize = calculateChunkSize(
+        settings.errorCorrectionLevel,
       );
+
+      print('QR Service: 从字节数组准备数据 (Web) - 实际块大小: $effectiveChunkSize 字节');
 
       // 直接从字节数组分片
       final chunks = await FileService.splitBytesIntoChunks(
@@ -146,7 +150,7 @@ class QrService {
         effectiveChunkSize,
         fileName,
       );
-      
+
       final metadata = FileService.createTransferMetadataFromBytes(
         bytes,
         fileName,
@@ -155,10 +159,12 @@ class QrService {
       );
 
       // 生成QR数据列表
-      final qrDataList = <String>[];
-      qrDataList.add(jsonEncode(metadata.toJson()));
+      final qrDataList = <Uint8List>[];
+      final metaBytes = utf8.encode(jsonEncode(metadata.toJson()));
+      qrDataList.add(Uint8List.fromList(ZLibEncoder().encode(metaBytes)));
       for (final chunk in chunks) {
-        qrDataList.add(jsonEncode(chunk.toJson()));
+        final chunkBytes = utf8.encode(jsonEncode(chunk.toJson()));
+        qrDataList.add(Uint8List.fromList(ZLibEncoder().encode(chunkBytes)));
       }
 
       _qrDataList = qrDataList;
@@ -276,12 +282,17 @@ class QrService {
   }
 
   /// 处理扫描结果
-  static Future<File?> handleScanResult(String result) async {
+  static Future<File?> handleScanResult(Uint8List rawBytes) async {
     try {
-      // 通知传输服务处理器
+      // 1. Zlib 解压
+      final decompressed = ZLibDecoder().decodeBytes(rawBytes);
+      // 2. UTF8 解码
+      final result = utf8.decode(decompressed);
+      // 3. 通知传输服务处理器
       return await TransferService.handleScannedData(result);
     } catch (e) {
       // 错误处理已在传输服务中完成
+      print('处理扫描结果失败: $e');
       return null;
     }
   }

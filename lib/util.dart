@@ -2,6 +2,7 @@ import 'dart:math';
 import 'dart:typed_data';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
+import 'version.dart' as v;
 
 /// 是否支持扫码（移动端）
 bool isScannerSupported() {
@@ -10,11 +11,8 @@ bool isScannerSupported() {
   return false;
 }
 
-/// 应用版本号（从构建时 dart-define 注入）
-const String kAppVersion = String.fromEnvironment(
-  'APP_VERSION',
-  defaultValue: '1.0.0',
-);
+/// 应用版本号
+const String kAppVersion = v.version;
 
 /// 获取应用版本号
 String getAppVersion() {

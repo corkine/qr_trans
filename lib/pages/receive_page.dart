@@ -664,10 +664,10 @@ class _ReceivePageState extends State<ReceivePage> {
 
   Future<void> _handleBarcodeScan(BarcodeCapture capture) async {
     final barcode = capture.barcodes.firstOrNull;
-    if (barcode?.rawValue != null) {
+    if (barcode?.rawBytes != null) {
       // 移除震动反馈以避免iPhone震动
       // HapticFeedback.lightImpact();
-      final file = await QrService.handleScanResult(barcode!.rawValue!);
+      final file = await QrService.handleScanResult(barcode!.rawBytes!);
       if (file != null) {
         _receivedFiles.add(file);
         await _loadReceivedFiles();

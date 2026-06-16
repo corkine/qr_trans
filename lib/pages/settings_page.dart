@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
+import 'package:url_launcher/url_launcher_string.dart';
 import 'package:qr_trans/util.dart';
 import '../models/app_settings.dart';
 import '../services/settings_service.dart';
@@ -158,25 +160,7 @@ class _SettingsPageState extends State<SettingsPage> {
               },
             ),
 
-            const Divider(),
 
-            // 数据块大小
-            _buildSliderSetting(
-              context: context,
-              title: '数据块大小',
-              subtitle: '二维码数据量比例（系统自动计算实际字节数）',
-              value: settings.chunkSizeRatio,
-              min: 10.0,
-              max: 100.0,
-              divisions: 18,
-              format: (value) => '${value.toInt()}%',
-              onChanged: (value) async {
-                await SettingsService.updateChunkSizeRatio(value);
-                await _loadSettings();
-              },
-            ),
-
-            const Divider(),
 
             // 自动播放
             _buildSwitchSetting(
@@ -488,7 +472,14 @@ class _SettingsPageState extends State<SettingsPage> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('使用帮助'),
+        title: GestureDetector(
+          onLongPress: () {
+            if (kIsWeb) {
+              _showDownloadDialog(context);
+            }
+          },
+          child: const Text('使用帮助'),
+        ),
         content: const SingleChildScrollView(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -510,9 +501,56 @@ class _SettingsPageState extends State<SettingsPage> {
               Text('• QR码大小：调整二维码显示尺寸'),
               Text('• 播放速度：调整二维码切换间隔'),
               Text('• 纠错等级：提高二维码识别成功率'),
-              Text('• 数据块大小：平衡传输速度和稳定性'),
             ],
           ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('关闭'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showDownloadDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('下载客户端'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.desktop_windows),
+              title: const Text('Windows'),
+              subtitle: const Text('点击下载'),
+              onTap: () {
+                final version = getAppVersion();
+                final downloadUri = Uri.base.resolve('release/qr_trans_windows_$version.zip');
+                launchUrlString(downloadUri.toString());
+              },
+            ),
+            const ListTile(
+              leading: Icon(Icons.laptop_mac),
+              title: Text('macOS'),
+              subtitle: Text('敬请期待'),
+              enabled: false,
+            ),
+            const ListTile(
+              leading: Icon(Icons.computer),
+              title: Text('Linux'),
+              subtitle: Text('敬请期待'),
+              enabled: false,
+            ),
+            const ListTile(
+              leading: Icon(Icons.android),
+              title: Text('Android'),
+              subtitle: Text('敬请期待'),
+              enabled: false,
+            ),
+          ],
         ),
         actions: [
           TextButton(

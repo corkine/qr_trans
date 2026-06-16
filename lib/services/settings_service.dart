@@ -55,12 +55,6 @@ class SettingsService {
     await saveSettings(updatedSettings);
   }
 
-  static Future<void> updateChunkSizeRatio(double ratio) async {
-    final settings = await loadSettings();
-    final updatedSettings = settings.copyWith(chunkSizeRatio: ratio);
-    await saveSettings(updatedSettings);
-  }
-
   static Future<void> updateAutoPlay(bool autoPlay) async {
     final settings = await loadSettings();
     final updatedSettings = settings.copyWith(autoPlay: autoPlay);

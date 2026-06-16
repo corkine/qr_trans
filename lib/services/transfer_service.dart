@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
-import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'package:qr_trans/services/qr_service.dart';
 
@@ -48,7 +47,7 @@ class TransferService {
 
       // 计算实际的chunk大小
       final actualChunkSize = QrService.calculateChunkSize(
-        settings.chunkSizeRatio,
+        settings.errorCorrectionLevel,
       );
       final chunks = await FileService.splitFileIntoChunks(
         file,
@@ -101,7 +100,7 @@ class TransferService {
 
       // 计算实际的chunk大小
       final actualChunkSize = QrService.calculateChunkSize(
-        settings.chunkSizeRatio,
+        settings.errorCorrectionLevel,
       );
 
       final chunks = await FileService.splitBytesIntoChunks(

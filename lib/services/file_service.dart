@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:archive/archive.dart';
 import '../models/transfer_metadata.dart';
 import '../util.dart';
 
@@ -45,7 +46,8 @@ class FileService {
     File file,
     int chunkSize,
   ) async {
-    final bytes = await file.readAsBytes();
+    final originalBytes = await file.readAsBytes();
+    final bytes = Uint8List.fromList(ZLibEncoder().encode(originalBytes));
     final transferId = ShortId.generate();
     final chunks = <FileChunk>[];
 
@@ -69,13 +71,15 @@ class FileService {
 
   /// Web平台专用：将字节数组分割为多个数据块
   static Future<List<FileChunk>> splitBytesIntoChunks(
-    Uint8List bytes,
+    Uint8List originalBytes,
     int chunkSize,
     String fileName,
   ) async {
     if (!kIsWeb) {
       throw UnsupportedError('此方法仅在Web平台可用');
     }
+
+    final bytes = Uint8List.fromList(ZLibEncoder().encode(originalBytes));
 
     final transferId = ShortId.generate();
     final chunks = <FileChunk>[];
@@ -163,22 +167,26 @@ class FileService {
       assembledBytes.addAll(chunkData);
     }
 
+    // 解压合并后的完整二进制数据
+    final decompressedBytes = ZLibDecoder().decodeBytes(assembledBytes);
+
     // 验证文件完整性
-    final assembledChecksum = Crc32.compute(
-      Uint8List.fromList(assembledBytes),
+    final decompressedChecksum = Crc32.compute(
+      Uint8List.fromList(decompressedBytes),
     );
-    if (assembledChecksum != metadata.checksum) {
+    if (decompressedChecksum != metadata.checksum) {
       throw Exception('文件校验失败');
     }
 
     // 验证文件大小
-    if (assembledBytes.length != metadata.fileSize) {
+    if (decompressedBytes.length != metadata.fileSize) {
       throw Exception(
-        '文件大小不匹配: 期望 ${metadata.fileSize}, 实际 ${assembledBytes.length}',
+        '文件大小不匹配: 期望 ${metadata.fileSize}, 实际 ${decompressedBytes.length}',
       );
     }
 
-    await outputFile.writeAsBytes(assembledBytes);
+    // 写入文件
+    await outputFile.writeAsBytes(decompressedBytes);
     return outputFile;
   }
 

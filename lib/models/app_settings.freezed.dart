@@ -16,8 +16,7 @@ T _$identity<T>(T value) => value;
 mixin _$AppSettings {
 
  double get qrSize; int get playbackSpeed;// milliseconds between frames
- int get errorCorrectionLevel; double get chunkSizeRatio;// 0-100 ratio for chunk size
- bool get autoPlay;
+ int get errorCorrectionLevel; bool get autoPlay;
 /// Create a copy of AppSettings
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -30,16 +29,16 @@ $AppSettingsCopyWith<AppSettings> get copyWith => _$AppSettingsCopyWithImpl<AppS
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is AppSettings&&(identical(other.qrSize, qrSize) || other.qrSize == qrSize)&&(identical(other.playbackSpeed, playbackSpeed) || other.playbackSpeed == playbackSpeed)&&(identical(other.errorCorrectionLevel, errorCorrectionLevel) || other.errorCorrectionLevel == errorCorrectionLevel)&&(identical(other.chunkSizeRatio, chunkSizeRatio) || other.chunkSizeRatio == chunkSizeRatio)&&(identical(other.autoPlay, autoPlay) || other.autoPlay == autoPlay));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is AppSettings&&(identical(other.qrSize, qrSize) || other.qrSize == qrSize)&&(identical(other.playbackSpeed, playbackSpeed) || other.playbackSpeed == playbackSpeed)&&(identical(other.errorCorrectionLevel, errorCorrectionLevel) || other.errorCorrectionLevel == errorCorrectionLevel)&&(identical(other.autoPlay, autoPlay) || other.autoPlay == autoPlay));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,qrSize,playbackSpeed,errorCorrectionLevel,chunkSizeRatio,autoPlay);
+int get hashCode => Object.hash(runtimeType,qrSize,playbackSpeed,errorCorrectionLevel,autoPlay);
 
 @override
 String toString() {
-  return 'AppSettings(qrSize: $qrSize, playbackSpeed: $playbackSpeed, errorCorrectionLevel: $errorCorrectionLevel, chunkSizeRatio: $chunkSizeRatio, autoPlay: $autoPlay)';
+  return 'AppSettings(qrSize: $qrSize, playbackSpeed: $playbackSpeed, errorCorrectionLevel: $errorCorrectionLevel, autoPlay: $autoPlay)';
 }
 
 
@@ -50,7 +49,7 @@ abstract mixin class $AppSettingsCopyWith<$Res>  {
   factory $AppSettingsCopyWith(AppSettings value, $Res Function(AppSettings) _then) = _$AppSettingsCopyWithImpl;
 @useResult
 $Res call({
- double qrSize, int playbackSpeed, int errorCorrectionLevel, double chunkSizeRatio, bool autoPlay
+ double qrSize, int playbackSpeed, int errorCorrectionLevel, bool autoPlay
 });
 
 
@@ -67,13 +66,12 @@ class _$AppSettingsCopyWithImpl<$Res>
 
 /// Create a copy of AppSettings
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? qrSize = null,Object? playbackSpeed = null,Object? errorCorrectionLevel = null,Object? chunkSizeRatio = null,Object? autoPlay = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? qrSize = null,Object? playbackSpeed = null,Object? errorCorrectionLevel = null,Object? autoPlay = null,}) {
   return _then(_self.copyWith(
 qrSize: null == qrSize ? _self.qrSize : qrSize // ignore: cast_nullable_to_non_nullable
 as double,playbackSpeed: null == playbackSpeed ? _self.playbackSpeed : playbackSpeed // ignore: cast_nullable_to_non_nullable
 as int,errorCorrectionLevel: null == errorCorrectionLevel ? _self.errorCorrectionLevel : errorCorrectionLevel // ignore: cast_nullable_to_non_nullable
-as int,chunkSizeRatio: null == chunkSizeRatio ? _self.chunkSizeRatio : chunkSizeRatio // ignore: cast_nullable_to_non_nullable
-as double,autoPlay: null == autoPlay ? _self.autoPlay : autoPlay // ignore: cast_nullable_to_non_nullable
+as int,autoPlay: null == autoPlay ? _self.autoPlay : autoPlay // ignore: cast_nullable_to_non_nullable
 as bool,
   ));
 }
@@ -159,10 +157,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( double qrSize,  int playbackSpeed,  int errorCorrectionLevel,  double chunkSizeRatio,  bool autoPlay)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( double qrSize,  int playbackSpeed,  int errorCorrectionLevel,  bool autoPlay)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _AppSettings() when $default != null:
-return $default(_that.qrSize,_that.playbackSpeed,_that.errorCorrectionLevel,_that.chunkSizeRatio,_that.autoPlay);case _:
+return $default(_that.qrSize,_that.playbackSpeed,_that.errorCorrectionLevel,_that.autoPlay);case _:
   return orElse();
 
 }
@@ -180,10 +178,10 @@ return $default(_that.qrSize,_that.playbackSpeed,_that.errorCorrectionLevel,_tha
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( double qrSize,  int playbackSpeed,  int errorCorrectionLevel,  double chunkSizeRatio,  bool autoPlay)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( double qrSize,  int playbackSpeed,  int errorCorrectionLevel,  bool autoPlay)  $default,) {final _that = this;
 switch (_that) {
 case _AppSettings():
-return $default(_that.qrSize,_that.playbackSpeed,_that.errorCorrectionLevel,_that.chunkSizeRatio,_that.autoPlay);case _:
+return $default(_that.qrSize,_that.playbackSpeed,_that.errorCorrectionLevel,_that.autoPlay);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -200,10 +198,10 @@ return $default(_that.qrSize,_that.playbackSpeed,_that.errorCorrectionLevel,_tha
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( double qrSize,  int playbackSpeed,  int errorCorrectionLevel,  double chunkSizeRatio,  bool autoPlay)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( double qrSize,  int playbackSpeed,  int errorCorrectionLevel,  bool autoPlay)?  $default,) {final _that = this;
 switch (_that) {
 case _AppSettings() when $default != null:
-return $default(_that.qrSize,_that.playbackSpeed,_that.errorCorrectionLevel,_that.chunkSizeRatio,_that.autoPlay);case _:
+return $default(_that.qrSize,_that.playbackSpeed,_that.errorCorrectionLevel,_that.autoPlay);case _:
   return null;
 
 }
@@ -215,15 +213,13 @@ return $default(_that.qrSize,_that.playbackSpeed,_that.errorCorrectionLevel,_tha
 @JsonSerializable()
 
 class _AppSettings implements AppSettings {
-  const _AppSettings({this.qrSize = 360.0, this.playbackSpeed = 1000, this.errorCorrectionLevel = 1, this.chunkSizeRatio = 80.0, this.autoPlay = true});
+  const _AppSettings({this.qrSize = 360.0, this.playbackSpeed = 1000, this.errorCorrectionLevel = 1, this.autoPlay = true});
   factory _AppSettings.fromJson(Map<String, dynamic> json) => _$AppSettingsFromJson(json);
 
 @override@JsonKey() final  double qrSize;
 @override@JsonKey() final  int playbackSpeed;
 // milliseconds between frames
 @override@JsonKey() final  int errorCorrectionLevel;
-@override@JsonKey() final  double chunkSizeRatio;
-// 0-100 ratio for chunk size
 @override@JsonKey() final  bool autoPlay;
 
 /// Create a copy of AppSettings
@@ -239,16 +235,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _AppSettings&&(identical(other.qrSize, qrSize) || other.qrSize == qrSize)&&(identical(other.playbackSpeed, playbackSpeed) || other.playbackSpeed == playbackSpeed)&&(identical(other.errorCorrectionLevel, errorCorrectionLevel) || other.errorCorrectionLevel == errorCorrectionLevel)&&(identical(other.chunkSizeRatio, chunkSizeRatio) || other.chunkSizeRatio == chunkSizeRatio)&&(identical(other.autoPlay, autoPlay) || other.autoPlay == autoPlay));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _AppSettings&&(identical(other.qrSize, qrSize) || other.qrSize == qrSize)&&(identical(other.playbackSpeed, playbackSpeed) || other.playbackSpeed == playbackSpeed)&&(identical(other.errorCorrectionLevel, errorCorrectionLevel) || other.errorCorrectionLevel == errorCorrectionLevel)&&(identical(other.autoPlay, autoPlay) || other.autoPlay == autoPlay));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,qrSize,playbackSpeed,errorCorrectionLevel,chunkSizeRatio,autoPlay);
+int get hashCode => Object.hash(runtimeType,qrSize,playbackSpeed,errorCorrectionLevel,autoPlay);
 
 @override
 String toString() {
-  return 'AppSettings(qrSize: $qrSize, playbackSpeed: $playbackSpeed, errorCorrectionLevel: $errorCorrectionLevel, chunkSizeRatio: $chunkSizeRatio, autoPlay: $autoPlay)';
+  return 'AppSettings(qrSize: $qrSize, playbackSpeed: $playbackSpeed, errorCorrectionLevel: $errorCorrectionLevel, autoPlay: $autoPlay)';
 }
 
 
@@ -259,7 +255,7 @@ abstract mixin class _$AppSettingsCopyWith<$Res> implements $AppSettingsCopyWith
   factory _$AppSettingsCopyWith(_AppSettings value, $Res Function(_AppSettings) _then) = __$AppSettingsCopyWithImpl;
 @override @useResult
 $Res call({
- double qrSize, int playbackSpeed, int errorCorrectionLevel, double chunkSizeRatio, bool autoPlay
+ double qrSize, int playbackSpeed, int errorCorrectionLevel, bool autoPlay
 });
 
 
@@ -276,13 +272,12 @@ class __$AppSettingsCopyWithImpl<$Res>
 
 /// Create a copy of AppSettings
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? qrSize = null,Object? playbackSpeed = null,Object? errorCorrectionLevel = null,Object? chunkSizeRatio = null,Object? autoPlay = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? qrSize = null,Object? playbackSpeed = null,Object? errorCorrectionLevel = null,Object? autoPlay = null,}) {
   return _then(_AppSettings(
 qrSize: null == qrSize ? _self.qrSize : qrSize // ignore: cast_nullable_to_non_nullable
 as double,playbackSpeed: null == playbackSpeed ? _self.playbackSpeed : playbackSpeed // ignore: cast_nullable_to_non_nullable
 as int,errorCorrectionLevel: null == errorCorrectionLevel ? _self.errorCorrectionLevel : errorCorrectionLevel // ignore: cast_nullable_to_non_nullable
-as int,chunkSizeRatio: null == chunkSizeRatio ? _self.chunkSizeRatio : chunkSizeRatio // ignore: cast_nullable_to_non_nullable
-as double,autoPlay: null == autoPlay ? _self.autoPlay : autoPlay // ignore: cast_nullable_to_non_nullable
+as int,autoPlay: null == autoPlay ? _self.autoPlay : autoPlay // ignore: cast_nullable_to_non_nullable
 as bool,
   ));
 }

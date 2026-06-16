@@ -10,7 +10,6 @@ _AppSettings _$AppSettingsFromJson(Map<String, dynamic> json) => _AppSettings(
   qrSize: (json['qrSize'] as num?)?.toDouble() ?? 360.0,
   playbackSpeed: (json['playbackSpeed'] as num?)?.toInt() ?? 1000,
   errorCorrectionLevel: (json['errorCorrectionLevel'] as num?)?.toInt() ?? 1,
-  chunkSizeRatio: (json['chunkSizeRatio'] as num?)?.toDouble() ?? 80.0,
   autoPlay: json['autoPlay'] as bool? ?? true,
 );
 
@@ -19,7 +18,6 @@ Map<String, dynamic> _$AppSettingsToJson(_AppSettings instance) =>
       'qrSize': instance.qrSize,
       'playbackSpeed': instance.playbackSpeed,
       'errorCorrectionLevel': instance.errorCorrectionLevel,
-      'chunkSizeRatio': instance.chunkSizeRatio,
       'autoPlay': instance.autoPlay,
     };
 
