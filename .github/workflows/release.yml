@@ -16,6 +16,7 @@ on:
         - all
         - web
         - android
+        - ios
         - windows
         - macos
 
@@ -197,6 +198,49 @@ jobs:
         with:
           name: qr-trans-macos-${{ steps.version-unix.outputs.version }}
           path: qr-trans-macos-${{ steps.version-unix.outputs.version }}.zip
+
+  build_ios:
+    name: Build unsigned iOS Release
+    runs-on: macos-latest
+    if: github.event_name == 'workflow_dispatch' && (github.event.inputs.build_target == 'ios' || github.event.inputs.build_target == 'all')
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+
+      - name: Get Flutter dependencies
+        run: flutter pub get
+
+      - name: Sync and Extract Version
+        id: version
+        shell: bash
+        run: |
+          dart release.dart --only-sync-version
+          VERSION=$(grep '^version:' pubspec.yaml | awk '{print $2}')
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Build unsigned iOS app
+        run: flutter build ios --release --no-codesign
+
+      - name: Package unsigned IPA
+        shell: bash
+        run: |
+          mkdir -p Payload
+          ditto build/ios/iphoneos/Runner.app Payload/Runner.app
+          ditto -c -k --sequesterRsrc --keepParent Payload \
+            "qr-trans-ios-${{ steps.version.outputs.version }}-unsigned.ipa"
+
+      - name: Upload unsigned iOS IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: qr-trans-ios-${{ steps.version.outputs.version }}-unsigned
+          path: qr-trans-ios-${{ steps.version.outputs.version }}-unsigned.ipa
+          if-no-files-found: error
 
   create_release:
     name: Create GitHub Release
