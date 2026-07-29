@@ -1,0 +1,49 @@
+name: Build unsigned iOS
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build_ios:
+    name: Build unsigned iOS IPA
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Get Flutter dependencies
+        run: flutter pub get
+
+      - name: Sync and extract version
+        id: version
+        shell: bash
+        run: |
+          dart release.dart --only-sync-version
+          VERSION=$(grep '^version:' pubspec.yaml | awk '{print $2}')
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Build unsigned iOS app
+        run: flutter build ios --release --no-codesign
+
+      - name: Package unsigned IPA
+        shell: bash
+        run: |
+          mkdir Payload
+          ditto build/ios/iphoneos/Runner.app Payload/Runner.app
+          ditto -c -k --sequesterRsrc --keepParent Payload \
+            "qr-trans-ios-${{ steps.version.outputs.version }}-unsigned.ipa"
+
+      - name: Upload unsigned IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: qr-trans-ios-${{ steps.version.outputs.version }}-unsigned
+          path: qr-trans-ios-${{ steps.version.outputs.version }}-unsigned.ipa
+          if-no-files-found: error
+          retention-days: 30
